@@ -1,0 +1,43 @@
+{
+  "protocolVersion": "3.9.0",
+  "projectId": "swal-agent-runner",
+  "name": "SWAL Agent Runner PWA",
+  "features": [
+    {
+      "id": "FEAT-PWA-01",
+      "name": "PWA Manifest & Offline Execution",
+      "status": "in_progress",
+      "description": "Standalone PWA installation for Desktop & Android with Service Worker caching and COEP/COOP headers."
+    },
+    {
+      "id": "FEAT-GIT-01",
+      "name": "isomorphic-git IndexedDB Workspace",
+      "status": "in_progress",
+      "description": "In-browser Git repository shallow cloning, commit creation, diff generation, and push via CORS proxy."
+    },
+    {
+      "id": "FEAT-RUN-01",
+      "name": "Headless WebContainer Exec Engine",
+      "status": "in_progress",
+      "description": "Programmatic execution of Node.js commands, package installation, and test verification inside WebContainers."
+    },
+    {
+      "id": "FEAT-LLM-01",
+      "name": "Multi-Provider LLM & OAuth2 Auth",
+      "status": "in_progress",
+      "description": "Google AI Pro OAuth2 PKCE flow, OpenRouter API, OpenCodeGo, Anthropic, and custom OpenAI-compatible API key routing."
+    },
+    {
+      "id": "FEAT-XAV-01",
+      "name": "Xavier Local Memory Node & Real-Time Sync",
+      "status": "in_progress",
+      "description": "Local IndexedDB vector memory store paired via edge-mesh WebRTC with primary PC Xavier node for real-time bi-directional memory sync."
+    },
+    {
+      "id": "FEAT-AGT-01",
+      "name": "Autonomous ReAct Agent Loop",
+      "status": "in_progress",
+      "description": "Headless agent planner & execution loop with 8 structured tools (read_file, write_file, run_command, search_code, list_dir, git_diff, memory_search, complete)."
+    }
+  ]
+}
