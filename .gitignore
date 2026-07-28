@@ -27,3 +27,8 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Xavier
+xavier_memory.db
+xavier_memory.db-shm
+xavier_memory.db-wal

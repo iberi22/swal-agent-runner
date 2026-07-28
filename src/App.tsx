@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Navbar } from './components/Navbar';
+import { Navbar, BottomNav } from './components/Navbar';
 import { ProjectsView } from './components/ProjectsView';
 import { NewTaskView } from './components/NewTaskView';
 import { TaskProgressView } from './components/TaskProgressView';
@@ -59,40 +59,47 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] flex flex-col">
+    <div className="min-h-dvh flex flex-col bg-base text-text-primary">
+      {/* Desktop top navbar */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         openAuthModal={() => setIsAuthModalOpen(true)}
       />
 
-      <main className="flex-1">
-        {activeTab === 'projects' && (
-          <ProjectsView onSelectProject={handleSelectProjectToTask} />
-        )}
+      {/* Main content area */}
+      <main className="flex-1 pb-safe md:pb-0">
+        <div key={activeTab} className="animate-fade-up">
+          {activeTab === 'projects' && (
+            <ProjectsView onSelectProject={handleSelectProjectToTask} />
+          )}
 
-        {activeTab === 'new-task' && (
-          <NewTaskView
-            initialProjectName={selectedProject}
-            onLaunchTask={handleLaunchTask}
-          />
-        )}
+          {activeTab === 'new-task' && (
+            <NewTaskView
+              initialProjectName={selectedProject}
+              onLaunchTask={handleLaunchTask}
+            />
+          )}
 
-        {activeTab === 'progress' && (
-          <TaskProgressView
-            currentTask={currentTask}
-            onViewResults={() => setActiveTab('results')}
-          />
-        )}
+          {activeTab === 'progress' && (
+            <TaskProgressView
+              currentTask={currentTask}
+              onViewResults={() => setActiveTab('results')}
+            />
+          )}
 
-        {activeTab === 'results' && (
-          <TaskResultView currentTask={currentTask} />
-        )}
+          {activeTab === 'results' && (
+            <TaskResultView currentTask={currentTask} />
+          )}
 
-        {activeTab === 'memory' && (
-          <MemorySyncPanel />
-        )}
+          {activeTab === 'memory' && (
+            <MemorySyncPanel />
+          )}
+        </div>
       </main>
+
+      {/* Mobile bottom navigation */}
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
       <AuthSettingsModal
         isOpen={isAuthModalOpen}

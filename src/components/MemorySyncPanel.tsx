@@ -1,8 +1,57 @@
 import React, { useState, useEffect } from 'react';
-import { Database, RefreshCw, CheckCircle2, AlertTriangle, Radio, Server, HardDrive } from 'lucide-react';
+import {
+  Database,
+  RefreshCw,
+  Radio,
+  Server,
+  HardDrive,
+  Clock,
+  Zap,
+  CloudUpload,
+  CloudOff,
+  Layers,
+} from 'lucide-react';
 import { XavierPairStatus, MemoryChunk } from '../types';
 import { EdgeMeshSyncService } from '../services/memory/edge-mesh-sync';
 import { XavierMemoryNode } from '../services/memory/xavier-memory-node';
+import { timeAgo } from '../lib/format';
+
+const CONNECTION_META: Record<
+  XavierPairStatus['connectionState'],
+  { label: string; dot: string; text: string; ring: string }
+> = {
+  connected: {
+    label: 'Paired · Connected',
+    dot: 'bg-ok shadow-[0_0_10px_rgb(52_211_153/0.9)]',
+    text: 'text-ok',
+    ring: 'border-ok/25 bg-ok/5',
+  },
+  connecting: {
+    label: 'Connecting…',
+    dot: 'bg-warn animate-pulse-soft',
+    text: 'text-warn',
+    ring: 'border-warn/25 bg-warn/5',
+  },
+  disconnected: {
+    label: 'Local Only · Unpaired',
+    dot: 'bg-faint',
+    text: 'text-muted',
+    ring: 'border-line bg-surface',
+  },
+  error: {
+    label: 'Connection Error',
+    dot: 'bg-danger shadow-[0_0_10px_rgb(251_113_133/0.9)]',
+    text: 'text-danger',
+    ring: 'border-danger/25 bg-danger/5',
+  },
+};
+
+const CATEGORY_STYLE: Record<MemoryChunk['category'], string> = {
+  episodic: 'border-phase-exec/30 bg-phase-exec/10 text-phase-exec',
+  semantic: 'border-phase-read/30 bg-phase-read/10 text-phase-read',
+  procedural: 'border-phase-verify/30 bg-phase-verify/10 text-phase-verify',
+  working: 'border-phase-edit/30 bg-phase-edit/10 text-phase-edit',
+};
 
 export const MemorySyncPanel: React.FC = () => {
   const [pairStatus, setPairStatus] = useState<XavierPairStatus>({
@@ -16,9 +65,12 @@ export const MemorySyncPanel: React.FC = () => {
   const [chunks, setChunks] = useState<MemoryChunk[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
 
   const loadData = async () => {
+    const t0 = performance.now();
     const status = await EdgeMeshSyncService.checkPairConnection();
+    setLatencyMs(Math.round(performance.now() - t0));
     setPairStatus(status);
     const allChunks = await XavierMemoryNode.getAllChunks();
     setChunks(allChunks);
@@ -48,106 +100,159 @@ export const MemorySyncPanel: React.FC = () => {
     }
   };
 
-  return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      {/* Header Card */}
-      <div className="border border-slate-800 bg-[#0f1117] rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="flex items-start gap-4">
-          <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-indigo-400">
-            <Database className="w-7 h-7" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-3">
-              Xavier Local Memory Core & Real-Time Sync
-            </h2>
-            <p className="text-xs text-slate-400 mt-1 max-w-xl">
-              This node holds an embedded vector/semantic memory core in IndexedDB. When paired with your PC Xavier Master Node, it synchronizes task execution logs, code symbols, and ADRs in real time.
-            </p>
-          </div>
-        </div>
+  const conn = CONNECTION_META[pairStatus.connectionState];
 
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+  return (
+    <div className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6 md:py-10 lg:px-8">
+      {/* Pair status hero */}
+      <div className={`rounded-3xl border p-5 transition-colors sm:p-8 ${conn.ring}`}>
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-accent/25 bg-accent/10 text-accent-strong">
+              <Database className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="flex items-center gap-2.5 text-lg font-bold text-fg md:text-xl">
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${conn.dot}`} />
+                <span className={conn.text}>{conn.label}</span>
+              </h2>
+              <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-muted">
+                Embedded semantic memory core in IndexedDB. When paired with your PC Xavier Master
+                Node, it syncs execution logs, code symbols, and ADRs in real time.
+              </p>
+              <p className="mt-2 truncate font-mono text-[11px] text-faint">
+                {pairStatus.endpoint}
+              </p>
+            </div>
+          </div>
+
           <button
             onClick={handleManualSync}
             disabled={syncing}
-            className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 transition-all"
+            className="flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-xs font-semibold text-white shadow-glow-accent transition-all hover:bg-accent-strong active:scale-[0.98] disabled:opacity-60 md:w-auto"
           >
-            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Sync Real-Time Now'}
+            <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing…' : 'Sync Real-Time Now'}
           </button>
         </div>
-      </div>
 
-      {/* Sync Status Banner */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="border border-slate-800 bg-[#0f1117] rounded-2xl p-5">
-          <div className="text-xs text-slate-400 font-mono mb-1">Pair Status</div>
-          <div className="flex items-center gap-2">
-            <Radio className={`w-4 h-4 ${pairStatus.paired ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`} />
-            <span className="font-bold text-slate-100">{pairStatus.paired ? 'Paired (Connected)' : 'Local Only'}</span>
+        {/* Telemetry strip */}
+        <div className="mt-6 grid grid-cols-2 gap-3 border-t border-line/60 pt-5 sm:grid-cols-4">
+          <div>
+            <div className="mb-1 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-faint">
+              <Zap className="h-3 w-3" /> Latency
+            </div>
+            <div className="font-mono text-lg font-bold text-fg">
+              {latencyMs !== null && pairStatus.connectionState === 'connected'
+                ? `${latencyMs}ms`
+                : '—'}
+            </div>
+          </div>
+          <div>
+            <div className="mb-1 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-faint">
+              <Clock className="h-3 w-3" /> Last Sync
+            </div>
+            <div className="font-mono text-lg font-bold text-fg">
+              {timeAgo(pairStatus.lastSyncAt)}
+            </div>
+          </div>
+          <div>
+            <div className="mb-1 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-faint">
+              <CloudUpload className="h-3 w-3" /> Pending
+            </div>
+            <div
+              className={`font-mono text-lg font-bold ${
+                pairStatus.pendingSyncCount > 0 ? 'text-warn' : 'text-ok'
+              }`}
+            >
+              {pairStatus.pendingSyncCount}
+            </div>
+          </div>
+          <div>
+            <div className="mb-1 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-faint">
+              <Layers className="h-3 w-3" /> Local Chunks
+            </div>
+            <div className="font-mono text-lg font-bold text-fg">{chunks.length}</div>
           </div>
         </div>
-
-        <div className="border border-slate-800 bg-[#0f1117] rounded-2xl p-5">
-          <div className="text-xs text-slate-400 font-mono mb-1">Pending Chunks to Sync</div>
-          <div className="font-bold text-xl text-indigo-400 font-mono">{pairStatus.pendingSyncCount}</div>
-        </div>
-
-        <div className="border border-slate-800 bg-[#0f1117] rounded-2xl p-5">
-          <div className="text-xs text-slate-400 font-mono mb-1">Total Local Chunks</div>
-          <div className="font-bold text-xl text-slate-200 font-mono">{chunks.length}</div>
-        </div>
       </div>
 
+      {/* Sync result banner */}
       {syncResult && (
-        <div className={`p-4 rounded-2xl border text-xs font-mono ${syncResult.includes('Error') ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
+        <div
+          className={`animate-fade-up rounded-2xl border p-4 font-mono text-xs ${
+            syncResult.includes('Error')
+              ? 'border-danger/25 bg-danger/10 text-danger'
+              : 'border-ok/25 bg-ok/10 text-ok'
+          }`}
+        >
           {syncResult}
         </div>
       )}
 
-      {/* Master Node Pairing Config */}
-      <div className="border border-slate-800 bg-[#0f1117] rounded-3xl p-6 space-y-4">
-        <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-          <Server className="w-4 h-4 text-indigo-400" /> Master PC Xavier Endpoint Configuration
+      {/* Master node endpoint config */}
+      <div className="space-y-4 rounded-3xl border border-line bg-surface p-5 md:p-6">
+        <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
+          <Server className="h-4 w-4 text-accent-strong" /> Master PC Xavier Endpoint
         </h3>
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <input
             type="url"
             value={targetEndpoint}
             onChange={(e) => setTargetEndpoint(e.target.value)}
-            className="flex-1 bg-[#0a0a0f] border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-indigo-500"
+            className="flex-1 rounded-xl border border-line bg-base px-4 py-2.5 font-mono text-xs text-fg placeholder-faint transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
             placeholder="http://localhost:8006"
           />
           <button
             onClick={handleEndpointSave}
-            className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-xl text-xs border border-slate-700"
+            className="flex items-center justify-center gap-2 rounded-xl border border-line bg-elevated px-5 py-2.5 text-xs font-semibold text-fg transition-all hover:border-line-strong hover:bg-overlay active:scale-[0.98]"
           >
+            <Radio className="h-3.5 w-3.5 text-accent-strong" />
             Update & Check Pair
           </button>
         </div>
       </div>
 
-      {/* Chunks List */}
-      <div className="border border-slate-800 bg-[#0f1117] rounded-3xl p-6 space-y-4">
-        <h3 className="text-sm font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-          <HardDrive className="w-4 h-4 text-indigo-400" /> Embedded Memory Chunks ({chunks.length})
+      {/* Memory chunks */}
+      <div className="space-y-4 rounded-3xl border border-line bg-surface p-5 md:p-6">
+        <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
+          <HardDrive className="h-4 w-4 text-accent-strong" /> Embedded Memory Chunks
+          <span className="rounded-full border border-line bg-elevated px-2 py-0.5 font-mono text-[10px] normal-case text-muted">
+            {chunks.length}
+          </span>
         </h3>
 
         {chunks.length === 0 ? (
-          <p className="text-xs text-slate-500 italic py-4">No local memory chunks stored yet. Complete an agent task to generate memories.</p>
+          <p className="py-4 text-xs italic text-faint">
+            No local memory chunks stored yet. Complete an agent task to generate memories.
+          </p>
         ) : (
-          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+          <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
             {chunks.map((c) => (
-              <div key={c.id} className="border border-slate-800/60 bg-[#0a0a0f] rounded-xl p-4 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 font-mono font-bold uppercase text-[10px]">
+              <div
+                key={c.id}
+                className="space-y-2 rounded-2xl border border-line bg-base p-4 transition-colors hover:border-line-strong"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`rounded-md border px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider ${CATEGORY_STYLE[c.category]}`}
+                  >
                     {c.category}
                   </span>
-                  <span className="text-slate-500 font-mono text-[10px]">
-                    {new Date(c.timestamp).toLocaleString()} · {c.syncedToMaster ? '✅ Synced' : '⏳ Pending Sync'}
+                  <span className="flex items-center gap-1.5 font-mono text-[10px] text-faint">
+                    {new Date(c.timestamp).toLocaleString()} ·
+                    {c.syncedToMaster ? (
+                      <span className="flex items-center gap-1 text-ok">
+                        <CloudUpload className="h-3 w-3" /> Synced
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-warn">
+                        <CloudOff className="h-3 w-3" /> Pending
+                      </span>
+                    )}
                   </span>
                 </div>
-                <p className="text-xs text-slate-300 font-mono leading-relaxed">{c.content}</p>
+                <p className="font-mono text-xs leading-relaxed text-muted">{c.content}</p>
               </div>
             ))}
           </div>
