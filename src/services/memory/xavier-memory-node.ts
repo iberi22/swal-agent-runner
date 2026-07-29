@@ -1,5 +1,6 @@
 import { openDB, IDBPDatabase } from 'idb';
 import { MemoryChunk } from '../../types';
+import { CrdtMemoryStore } from '../mesh/crdt-memory-store';
 
 const DB_NAME = 'swal_xavier_memory_node';
 const DB_VERSION = 1;
@@ -18,13 +19,30 @@ export class XavierMemoryNode {
 
   public static async storeChunk(chunk: Omit<MemoryChunk, 'id' | 'timestamp' | 'syncedToMaster'>): Promise<MemoryChunk> {
     const db = await this.dbPromise;
+    const isWorking = chunk.category === 'working';
     const fullChunk: MemoryChunk = {
       ...chunk,
       id: crypto.randomUUID(),
       timestamp: Date.now(),
-      syncedToMaster: false,
+      syncedToMaster: isWorking, // Keep Xavier HTTP sync only for non-working memories
     };
     await db.put('chunks', fullChunk);
+
+    if (isWorking) {
+      try {
+        const crdtStore = CrdtMemoryStore.getInstance();
+        crdtStore.add({
+          id: fullChunk.id,
+          projectId: fullChunk.projectId,
+          content: fullChunk.content,
+          source: fullChunk.source,
+          embedding: fullChunk.embedding,
+        });
+      } catch (err) {
+        console.error('[XavierMemoryNode] Dual-write to CrdtMemoryStore failed:', err);
+      }
+    }
+
     return fullChunk;
   }
 
