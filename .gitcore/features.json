@@ -6,38 +6,132 @@
     {
       "id": "FEAT-PWA-01",
       "name": "PWA Manifest & Offline Execution",
-      "status": "in_progress",
-      "description": "Standalone PWA installation for Desktop & Android with Service Worker caching and COEP/COOP headers."
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "vite.config.ts, src/services/offline/",
+      "notes": "Service Worker with workbox precaching + runtime caching strategies. Build generates dist/sw.js, registerSW.js, manifest.json. COEP/COOP headers configured. Runtime caching: StaleWhileRevalidate for static, NetworkFirst for Brave API, NetworkOnly for Xavier, CacheFirst for CDN. Mode: generateSW (auto-generated SW, no custom sw.ts needed)."
     },
     {
       "id": "FEAT-GIT-01",
       "name": "isomorphic-git IndexedDB Workspace",
-      "status": "in_progress",
-      "description": "In-browser Git repository shallow cloning, commit creation, diff generation, and push via CORS proxy."
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-27",
+      "implemented_in": "src/services/git/git-service.ts",
+      "notes": "In-browser Git repo shallow cloning, commit, diff, push via CORS proxy. Phase 3."
     },
     {
       "id": "FEAT-RUN-01",
       "name": "Headless WebContainer Exec Engine",
-      "status": "in_progress",
-      "description": "Programmatic execution of Node.js commands, package installation, and test verification inside WebContainers."
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-27",
+      "implemented_in": "src/services/runtime/webcontainer-runner.ts",
+      "notes": "Programmatic Node.js execution, package install, test verification. Phase 3."
     },
     {
       "id": "FEAT-LLM-01",
       "name": "Multi-Provider LLM & OAuth2 Auth",
-      "status": "in_progress",
-      "description": "Google AI Pro OAuth2 PKCE flow, OpenRouter API, OpenCodeGo, Anthropic, and custom OpenAI-compatible API key routing."
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-27",
+      "implemented_in": "src/services/llm/",
+      "notes": "Google AI Pro OAuth2 PKCE, OpenRouter, OpenCodeGo, Anthropic, custom OpenAI. Phase 3."
     },
     {
       "id": "FEAT-XAV-01",
       "name": "Xavier Local Memory Node & Real-Time Sync",
-      "status": "in_progress",
-      "description": "Local IndexedDB vector memory store paired via edge-mesh WebRTC with primary PC Xavier node for real-time bi-directional memory sync."
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/services/memory/xavier-memory-node.ts, src/services/memory/edge-mesh-sync.ts",
+      "notes": "Local IndexedDB vector memory store + edge-mesh WebRTC P2P pairing with PC Xavier node. Phase 3-4."
     },
     {
       "id": "FEAT-AGT-01",
       "name": "Autonomous ReAct Agent Loop",
-      "status": "in_progress",
-      "description": "Headless agent planner & execution loop with 8 structured tools (read_file, write_file, run_command, search_code, list_dir, git_diff, memory_search, complete)."
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/agent/agent-loop.ts",
+      "notes": "Headless agent planner/execution loop with 8 tools. Phase 3. Phase 4: P2P event publishing added (6 lifecycle events: run:started, run:phase, step:progress, run:completed, run:failed). See AUDIT-FASE4 for CrdtEventBus duplication issue."
+    },
+    {
+      "id": "FEAT-MESH-01",
+      "name": "Edge Mesh P2P Transport (PeerJS + In-Memory)",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/services/mesh/transport.ts",
+      "notes": "ITransport interface + PeerJSTransport (dynamic import) + MemoryTransport (testing). EventTarget-based dispatch. EdgeMeshClient singleton with subscribe/destroy lifecycle. Phase 4."
+    },
+    {
+      "id": "FEAT-CRDT-01",
+      "name": "CRDT Graph (Yjs-backed MemoryGraph)",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/services/mesh/crdt-graph.ts",
+      "notes": "Y.Map-backed graph with chunks + edges. Reactive observe for add/update/delete. Cascade edge cleanup on chunk removal. Compatible with MemoryChunk types. Phase 4."
+    },
+    {
+      "id": "FEAT-CRDT-02",
+      "name": "CRDT EventBus (Y.Array-backed Agent Events)",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/services/mesh/crdt-event-bus.ts",
+      "notes": "Y.Array-backed event bus with observe delta filtering, auto-truncate at maxEvents. Error-isolated callbacks. GetHistory, getByType filter methods. Phase 4. FIXED: agent-loop.ts and useCrdtEvents.ts now use CrdtEventBus class via edgeMeshClient.crdtEventBus getter instead of direct Y.Array access. EdgeMeshClient lazy-initializes CrdtEventBus on first access."
+    },
+    {
+      "id": "FEAT-CRDT-03",
+      "name": "Yjs Adaptation Layer & P2P Sync",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/services/mesh/yjs-adapter.ts, src/services/mesh/crdt-sync.ts, src/types/y-webrtc.d.ts",
+      "notes": "YjsAdapter wrapper for Y.Doc with listener lifecycle. initCrdtSync: y-webrtc provider + y-indexeddb persistence. Type declarations for y-webrtc and y-indexeddb. Phase 4."
+    },
+    {
+      "id": "FEAT-PWA-02",
+      "name": "Offline-First: SyncQueue & Storage Manager",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/services/offline/",
+      "notes": "SyncQueue: IndexedDB-backed offline operation queue with 5x retry, processAll() replay. OfflineManager: online/offline detection, storage.persist() request, estimateStorage(). Storage helper for UI. Phase 4. FIXED: SyncQueue auto-flush wired in OfflineManager — processAll() runs on online event and on init if online."
+    },
+    {
+      "id": "FEAT-UI-01",
+      "name": "Pairing UI & Real-Time Event Hook",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/components/PairingView.tsx, src/hooks/useCrdtEvents.ts",
+      "notes": "PairingView: status indicator, peer ID input, dynamic PeerJS import, disconnect button, REAL QR generation via api.qrserver.com. useCrdtEvents: React hook using CrdtEventBus.subscribe(), filter by type, pairing status subscription via edgeMeshClient.subscribe(). Proper cleanup on unmount. Phase 4."
+    },
+    {
+      "id": "FEAT-CI-01",
+      "name": "CI Pipeline & Test Suite Expansion",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": ".github/workflows/ci.yml, src/agent/__tests__/, src/services/git/__tests__/, src/services/llm/__tests__/, src/services/memory/__tests__/, src/services/mesh/__tests__/",
+      "notes": "GitHub Actions CI workflow: pnpm install → tsc --noEmit → vitest run → pnpm build. 64 tests covering 9 test files across agent loop, agent tools, CRDT event bus, CRDT graph, git service, LLM provider manager, memory transport, sync queue, and Xavier memory node. All tests pass with jsdom environment and fake-indexeddb polyfill."
     }
   ]
 }

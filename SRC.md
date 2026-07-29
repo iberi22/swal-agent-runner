@@ -48,10 +48,16 @@ swal-agent-runner/
 │   ├── components/
 │   │   ├── AuthSettingsModal.tsx
 │   │   ├── MemorySyncPanel.tsx
+│   │   ├── Navbar.tsx
 │   │   ├── NewTaskView.tsx
+│   │   ├── PairingView.tsx
 │   │   ├── ProjectsView.tsx
 │   │   ├── TaskProgressView.tsx
 │   │   └── TaskResultView.tsx
+│   ├── hooks/
+│   │   └── useCrdtEvents.ts
+│   ├── lib/
+│   │   └── qrcode.ts
 │   ├── services/
 │   │   ├── git/
 │   │   │   └── git-service.ts
@@ -65,14 +71,33 @@ swal-agent-runner/
 │   │   ├── memory/
 │   │   │   ├── edge-mesh-sync.ts
 │   │   │   └── xavier-memory-node.ts
+│   │   ├── mesh/
+│   │   │   ├── crdt-event-bus.ts
+│   │   │   ├── crdt-graph.ts
+│   │   │   ├── crdt-sync.ts
+│   │   │   ├── edge-mesh-client.ts
+│   │   │   ├── index.ts
+│   │   │   ├── transport.ts
+│   │   │   ├── yjs-adapter.ts
+│   │   │   └── __tests__/
+│   │   │       ├── crdt-graph.test.ts
+│   │   │       └── transport.test.ts
+│   │   ├── offline/
+│   │   │   ├── index.ts
+│   │   │   ├── offline-manager.ts
+│   │   │   ├── storage-estimate.ts
+│   │   │   ├── sync-queue.ts
+│   │   │   └── __tests__/
+│   │   │       └── sync-queue.test.ts
 │   │   └── runtime/
 │   │       └── webcontainer-runner.ts
 │   ├── types/
-│   │   └── index.ts
+│   │   ├── index.ts
+│   │   └── y-webrtc.d.ts
 │   ├── App.tsx
 │   ├── index.css
 │   ├── main.tsx
-│   ├── sw.ts
+│   ├── test-setup.ts
 │   └── vite-env.d.ts
 ├── AGENTS.md
 ├── INDEX.html
