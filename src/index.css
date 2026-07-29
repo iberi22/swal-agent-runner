@@ -33,7 +33,7 @@
   --color-text-muted: var(--color-faint);
 
   /* ── Accent (indigo) ──────────────────────── */
-  --color-accent: #6366f1;
+  --color-accent: #5c5df0;
   --color-accent-strong: #818cf8; /* hover / bright accent     */
   --color-accent-deep: #4338ca;
   /* Aliases */

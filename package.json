@@ -33,6 +33,7 @@
     "yjs": "13.6.31"
   },
   "devDependencies": {
+    "@lhci/cli": "^0.15.1",
     "@stryker-mutator/core": "9.6.1",
     "@stryker-mutator/vitest-runner": "9.6.1",
     "@tailwindcss/vite": "^4.0.0",

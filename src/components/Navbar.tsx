@@ -143,7 +143,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab })
               onClick={() => setActiveTab(id)}
               className={cn(
                 'relative flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors',
-                active ? 'text-accent-soft' : 'text-text-muted hover:text-text-secondary'
+                active ? 'text-accent-soft' : 'text-text-secondary hover:text-text-primary'
               )}
             >
               {active && (

@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar, BottomNav } from './components/Navbar';
 import { ProjectsView } from './components/ProjectsView';
-import { NewTaskView } from './components/NewTaskView';
-import { TaskProgressView } from './components/TaskProgressView';
-import { TaskResultView } from './components/TaskResultView';
-import { MemorySyncPanel } from './components/MemorySyncPanel';
 import { AuthSettingsModal } from './components/AuthSettingsModal';
 import { CodingTask } from './types';
 import { AgentLoopRunner } from './agent/agent-loop';
 import { GeminiOAuthService } from './services/llm/providers/gemini-oauth';
 import { edgeMeshClient } from './services/mesh/edge-mesh-client';
 import { gestaltBridge } from './services/gestalt/gestalt-bridge';
-import { MeshPanel } from './components/MeshPanel';
+
+// Lazy load non-default tabs to optimize mobile performance (TBT, LCP, CLS)
+const NewTaskView = React.lazy(() => import('./components/NewTaskView').then(m => ({ default: m.NewTaskView })));
+const TaskProgressView = React.lazy(() => import('./components/TaskProgressView').then(m => ({ default: m.TaskProgressView })));
+const TaskResultView = React.lazy(() => import('./components/TaskResultView').then(m => ({ default: m.TaskResultView })));
+const MemorySyncPanel = React.lazy(() => import('./components/MemorySyncPanel').then(m => ({ default: m.MemorySyncPanel })));
+const MeshPanel = React.lazy(() => import('./components/MeshPanel').then(m => ({ default: m.MeshPanel })));
 
 export function App() {
   const [activeTab, setActiveTab] = useState<'projects' | 'new-task' | 'progress' | 'results' | 'memory' | 'mesh'>('projects');
@@ -88,35 +90,43 @@ export function App() {
       {/* Main content area */}
       <main className="flex-1 pb-safe md:pb-0">
         <div key={activeTab} className="animate-fade-up">
-          {activeTab === 'projects' && (
-            <ProjectsView onSelectProject={handleSelectProjectToTask} />
-          )}
+          <React.Suspense fallback={
+            <div className="max-w-4xl mx-auto px-4 py-8 text-center animate-pulse">
+              <div className="h-10 w-48 bg-elevated rounded-xl mx-auto mb-4" />
+              <div className="h-4 w-72 bg-elevated rounded-lg mx-auto mb-8" />
+              <div className="h-64 bg-elevated rounded-3xl" />
+            </div>
+          }>
+            {activeTab === 'projects' && (
+              <ProjectsView onSelectProject={handleSelectProjectToTask} />
+            )}
 
-          {activeTab === 'new-task' && (
-            <NewTaskView
-              initialProjectName={selectedProject}
-              onLaunchTask={handleLaunchTask}
-            />
-          )}
+            {activeTab === 'new-task' && (
+              <NewTaskView
+                initialProjectName={selectedProject}
+                onLaunchTask={handleLaunchTask}
+              />
+            )}
 
-          {activeTab === 'progress' && (
-            <TaskProgressView
-              currentTask={currentTask}
-              onViewResults={() => setActiveTab('results')}
-            />
-          )}
+            {activeTab === 'progress' && (
+              <TaskProgressView
+                currentTask={currentTask}
+                onViewResults={() => setActiveTab('results')}
+              />
+            )}
 
-          {activeTab === 'results' && (
-            <TaskResultView currentTask={currentTask} />
-          )}
+            {activeTab === 'results' && (
+              <TaskResultView currentTask={currentTask} />
+            )}
 
-          {activeTab === 'memory' && (
-            <MemorySyncPanel />
-          )}
+            {activeTab === 'memory' && (
+              <MemorySyncPanel />
+            )}
 
-          {activeTab === 'mesh' && (
-            <MeshPanel />
-          )}
+            {activeTab === 'mesh' && (
+              <MeshPanel />
+            )}
+          </React.Suspense>
         </div>
       </main>
 

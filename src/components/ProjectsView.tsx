@@ -81,10 +81,10 @@ function CloneModal({
   return (
     <div className="fixed inset-0 bg-base/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-surface border border-line rounded-2xl p-6 max-w-md w-full shadow-card animate-fade-up">
-        <h3 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
           <GitFork className="w-5 h-5 text-accent-soft" />
           Clone Git Repository
-        </h3>
+        </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-text-secondary mb-1">Git Repository URL</label>
@@ -194,7 +194,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({ onSelectProject }) =
       {!loading && projects.length === 0 && (
         <div className="border border-dashed border-line-strong rounded-2xl p-12 text-center bg-surface/40">
           <HardDrive className="w-12 h-12 text-text-muted mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-text-primary">No Repositories Connected</h3>
+          <h2 className="text-lg font-medium text-text-primary">No Repositories Connected</h2>
           <p className="text-sm text-text-secondary max-w-md mx-auto mt-2 mb-6">
             Clone a Git repository into your browser's IndexedDB storage to start executing autonomous agent tasks.
           </p>
