@@ -200,6 +200,107 @@ export class GitWorkspaceService {
     }
   }
 
+  public static async fetch(
+    projectName: string,
+    token?: string,
+    remoteName = 'origin',
+    corsProxy?: string
+  ): Promise<void> {
+    const dir = `/projects/${projectName}`;
+    const proxy = corsProxy || this.defaultCorsProxy;
+
+    await git.fetch({
+      fs: this.fs,
+      http,
+      dir,
+      remote: remoteName,
+      corsProxy: proxy,
+      onAuth: token ? () => ({ username: token }) : undefined,
+      singleBranch: true,
+    });
+  }
+
+  public static async merge(
+    projectName: string,
+    theirs: string,
+    ours?: string,
+    authorName = 'SWAL Agent',
+    authorEmail = 'agent@swal.dev'
+  ): Promise<{ oid: string; alreadyMerged?: boolean }> {
+    const dir = `/projects/${projectName}`;
+    let oursBranch = ours;
+    if (!oursBranch) {
+      oursBranch = (await git.currentBranch({ fs: this.fs, dir })) || 'main';
+    }
+
+    try {
+      const res = await git.merge({
+        fs: this.fs,
+        dir,
+        ours: oursBranch,
+        theirs,
+        author: {
+          name: authorName,
+          email: authorEmail,
+        },
+        abortOnConflict: true,
+      });
+
+      // After a successful merge, update working tree by checking out
+      await git.checkout({
+        fs: this.fs,
+        dir,
+        ref: oursBranch,
+        force: true,
+      });
+
+      const projects = await this.listProjects();
+      const p = projects.find((x) => x.name === projectName);
+      if (p) {
+        p.status = 'synced';
+        p.lastSyncedAt = Date.now();
+        await this.saveProjects(projects);
+      }
+
+      return {
+        oid: res.oid || '',
+        alreadyMerged: res.alreadyMerged,
+      };
+    } catch (err: any) {
+      if (err.name === 'MergeConflictError') {
+        throw err;
+      }
+      throw new Error(`Merge failed: ${err.message || err}`);
+    }
+  }
+
+  public static async pull(
+    projectName: string,
+    token?: string,
+    remoteName = 'origin',
+    corsProxy?: string,
+    authorName = 'SWAL Agent',
+    authorEmail = 'agent@swal.dev'
+  ): Promise<{ oid: string; alreadyMerged?: boolean }> {
+    const dir = `/projects/${projectName}`;
+
+    // Fetch remote changes first
+    await this.fetch(projectName, token, remoteName, corsProxy);
+
+    const branchName = (await git.currentBranch({ fs: this.fs, dir })) || 'main';
+    const remoteRef = `refs/remotes/${remoteName}/${branchName}`;
+
+    try {
+      return await this.merge(projectName, remoteRef, branchName, authorName, authorEmail);
+    } catch (err: any) {
+      if (err.name === 'NotFoundError') {
+        // If remote branch is not found, maybe it hasn't been created on remote yet.
+        return { oid: '', alreadyMerged: true };
+      }
+      throw err;
+    }
+  }
+
   public static getRawFS() {
     return this.fs;
   }
