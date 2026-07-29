@@ -187,7 +187,14 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test-setup.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**', 'test/a11y/**', 'test/visual/**', 'test/e2e/**'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/test/a11y/**',
+      '**/test/visual/**',
+      '**/test/e2e/**',
+      '**/.{git,cache,temp}/**'
+    ],
   },
   server: {
     headers: securityHeadersDev,

@@ -76,6 +76,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, openAut
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
+              data-tab={id}
               onClick={() => setActiveTab(id)}
               className={cn(
                 'px-3 py-1.5 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-colors',
@@ -140,6 +141,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab })
           return (
             <button
               key={id}
+              data-tab={id}
               onClick={() => setActiveTab(id)}
               className={cn(
                 'relative flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium transition-colors',

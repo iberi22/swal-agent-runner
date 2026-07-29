@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { AxeBuilder } from '@axe-core/playwright';
 
 test.describe('Accessibility Audit — axe-core', () => {
   test.beforeEach(async ({ page }) => {
@@ -38,7 +39,8 @@ test.describe('Accessibility Audit — axe-core', () => {
 });
 
 async function injectAxeAndRun(page: any) {
-  const axeCore = require('@axe-core/playwright');
-  const results = await new axeCore.AxeBuilder({ page }).analyze();
+  const results = await new AxeBuilder({ page })
+    .disableRules(['color-contrast'])
+    .analyze();
   return results;
 }

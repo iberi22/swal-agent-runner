@@ -75,7 +75,7 @@ export const NewTaskView: React.FC<NewTaskViewProps> = ({ initialProjectName, on
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Target Project — with search/typeahead for many projects */}
           <div className="relative">
-            <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2 flex items-center gap-2">
+            <label htmlFor="target-repo" className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2 flex items-center gap-2">
               <FolderGit2 className="w-4 h-4 text-accent-soft" /> Target Repository
             </label>
             {projects.length > 5 ? (
@@ -85,6 +85,7 @@ export const NewTaskView: React.FC<NewTaskViewProps> = ({ initialProjectName, on
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
                   <input
                     type="text"
+                    id="target-repo"
                     placeholder="Search repositories..."
                     value={projectSearch || selectedProject}
                     onFocus={() => { setShowProjectDropdown(true); setProjectSearch(''); }}
@@ -117,6 +118,7 @@ export const NewTaskView: React.FC<NewTaskViewProps> = ({ initialProjectName, on
             ) : (
               /* Simple select for few projects */
               <select
+                id="target-repo"
                 value={selectedProject}
                 onChange={(e) => setSelectedProject(e.target.value)}
                 className="w-full bg-elevated border border-line rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
@@ -136,10 +138,11 @@ export const NewTaskView: React.FC<NewTaskViewProps> = ({ initialProjectName, on
 
           {/* Prompt */}
           <div>
-            <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
+            <label htmlFor="task-prompt" className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
               Task Prompt / Instruction
             </label>
             <textarea
+              id="task-prompt"
               required
               rows={5}
               placeholder="e.g. Implement rate-limiting middleware in src/middleware/rate-limit.ts with unit tests using Vitest..."
@@ -152,10 +155,11 @@ export const NewTaskView: React.FC<NewTaskViewProps> = ({ initialProjectName, on
           {/* Branch & LLM Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2 flex items-center gap-2">
+              <label htmlFor="target-branch" className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2 flex items-center gap-2">
                 <GitBranch className="w-4 h-4 text-accent-soft" /> Target Branch Name
               </label>
               <input
+                id="target-branch"
                 type="text"
                 required
                 value={targetBranch}
@@ -165,10 +169,11 @@ export const NewTaskView: React.FC<NewTaskViewProps> = ({ initialProjectName, on
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2 flex items-center gap-2">
+              <label htmlFor="provider-engine" className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2 flex items-center gap-2">
                 <Cpu className="w-4 h-4 text-accent-soft" /> LLM Provider Engine
               </label>
               <select
+                id="provider-engine"
                 value={selectedProviderType}
                 onChange={(e) => setSelectedProviderType(e.target.value as any)}
                 className="w-full bg-elevated border border-line rounded-xl px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
