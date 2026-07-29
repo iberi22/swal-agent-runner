@@ -10,6 +10,7 @@ import { CodingTask } from './types';
 import { AgentLoopRunner } from './agent/agent-loop';
 import { GeminiOAuthService } from './services/llm/providers/gemini-oauth';
 import { edgeMeshClient } from './services/mesh/edge-mesh-client';
+import { gestaltBridge } from './services/gestalt/gestalt-bridge';
 import { MeshPanel } from './components/MeshPanel';
 
 export function App() {
@@ -51,6 +52,9 @@ export function App() {
     edgeMeshClient.joinRoom(defaultRoom).catch(() => {
       // Mesh room not critical — fallback silently
     });
+
+    // Wire Gestalt Bridge into mesh lifecycle — auto-init when room is joined
+    gestaltBridge.bindMeshLifecycle();
 
     return () => {
       edgeMeshClient.events.removeEventListener('paired', handlePaired);
