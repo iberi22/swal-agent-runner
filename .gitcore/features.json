@@ -212,6 +212,56 @@
       "last_tested": "2026-07-29",
       "implemented_in": "src/agent/foreman-loop.ts",
       "notes": "ForemanAgentLoop: LLM task decomposition into up to 5 AgentSpecs. Parallel sub-agent dispatch via AgentLoopRunner. Branch-per-agent merge strategy. GestaltForeman JS interface mirroring Rust Foreman. Ola 6."
+    },
+    {
+      "id": "FEAT-CI-02",
+      "name": "GitHub Actions CI Pipeline + Deploy",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": ".github/workflows/ci.yml, .github/workflows/deploy.yml",
+      "notes": "CI: tsc --noEmit → vitest → pnpm build. Deploy: build dist/ → gh-pages branch. Wave 7 (Jules PRs #31, #32)."
+    },
+    {
+      "id": "FEAT-SEC-01",
+      "name": "CSP + Security Headers Hardening",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "vite.config.ts",
+      "notes": "Strict Content-Security-Policy in dev + preview. OWASP ZAP DAST scanning (test/security/dast.sh). COEP/COOP preserved. Wave 7 (Jules PR #33 + subagent)."
+    },
+    {
+      "id": "FEAT-TST-01",
+      "name": "Testing Battery — Mutation, DAST, A11y, Visual, Perf, Integration",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "stryker.conf.json, test/security/, test/a11y/, test/visual/, lighthouserc.json, test/crdt-memory-store.test.ts, test/git-sync-edge.test.ts",
+      "notes": "Stryker mutation testing (63.16%). OWASP ZAP DAST. axe-core A11y scaffold. Playwright visual regression scaffold. Lighthouse CI budget. +12 integration tests. Wave 7."
+    },
+    {
+      "id": "FEAT-DOC-01",
+      "name": "Documentation — README, SRC.md, JSDoc, Release Automation",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "README.md, SRC.md, CHANGELOG.md, .github/release.yml, src/**/*.ts (JSDoc)",
+      "notes": "Comprehensive README (+323 lines). SRC.md updated with Wave 6+7 architecture. JSDoc on 9 modules. Release automation with .github/release.yml. Wave 7 (Jules PR #30 + subagent)."
+    },
+    {
+      "id": "FEAT-PERF-01",
+      "name": "Bundle Optimization — Lazy yjs + Code Splitting",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "vite.config.ts, src/services/mesh/*.ts, src/services/mesh/crdt-event-bus.ts, src/services/mesh/crdt-memory-store.ts",
+      "notes": "Lazy yjs import in all mesh modules. Dynamic imports for CrdtEventBus, CrdtMemoryStore. Bundle: 646 KB (196 KB gzip). Wave 7 (subagent)."
     }
   ]
 }
