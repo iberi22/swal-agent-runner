@@ -33,10 +33,16 @@ swal-agent-runner/
 │   └── planning/
 │       └── tasks.json
 ├── docs/
-│   └── SRS/
-│       ├── ARCHITECTURE.md
-│       ├── REQUIREMENTS.md
-│       └── index.md
+│   ├── SRS/
+│   │   ├── ARCHITECTURE.md
+│   │   ├── REQUIREMENTS.md
+│   │   └── index.md
+│   └── design/
+│       ├── MULTI-NODE-GIT-SYNC.md
+│       ├── MULTI-PEER-MESH.md
+│       ├── DESIGN-pyodide-integration.md
+│       ├── crdt-p2p-memory-sync.md
+│       └── gestalt-wasm-integration-design.md
 ├── public/
 │   ├── icon-192.png
 │   ├── icon-512.png
@@ -44,10 +50,12 @@ swal-agent-runner/
 ├── src/
 │   ├── agent/
 │   │   ├── agent-loop.ts
-│   │   └── agent-tools.ts
+│   │   ├── agent-tools.ts
+│   │   └── foreman-loop.ts
 │   ├── components/
 │   │   ├── AuthSettingsModal.tsx
 │   │   ├── MemorySyncPanel.tsx
+│   │   ├── MeshPanel.tsx
 │   │   ├── Navbar.tsx
 │   │   ├── NewTaskView.tsx
 │   │   ├── PairingView.tsx
@@ -59,8 +67,12 @@ swal-agent-runner/
 │   ├── lib/
 │   │   └── qrcode.ts
 │   ├── services/
+│   │   ├── gestalt/
+│   │   │   ├── gestalt-bridge.ts
+│   │   │   └── index.ts
 │   │   ├── git/
-│   │   │   └── git-service.ts
+│   │   │   ├── git-service.ts
+│   │   │   └── git-sync-service.ts
 │   │   ├── llm/
 │   │   │   ├── llm-provider-manager.ts
 │   │   │   └── providers/
@@ -74,7 +86,9 @@ swal-agent-runner/
 │   │   ├── mesh/
 │   │   │   ├── crdt-event-bus.ts
 │   │   │   ├── crdt-graph.ts
+│   │   │   ├── crdt-memory-store.ts
 │   │   │   ├── crdt-sync.ts
+│   │   │   ├── device-identity.ts
 │   │   │   ├── edge-mesh-client.ts
 │   │   │   ├── index.ts
 │   │   │   ├── transport.ts
@@ -90,21 +104,39 @@ swal-agent-runner/
 │   │   │   └── __tests__/
 │   │   │       └── sync-queue.test.ts
 │   │   └── runtime/
-│   │       └── webcontainer-runner.ts
+│   │       ├── python-runner.ts
+│   │       ├── python-runner.test.ts
+│   │       ├── webcontainer-runner.ts
+│   │       └── index.ts
 │   ├── types/
 │   │   ├── index.ts
 │   │   └── y-webrtc.d.ts
+│   ├── wasm/
+│   │   └── gestalt-wasm.d.ts
+│   ├── workers/
+│   │   └── gestalt-worker.ts
 │   ├── App.tsx
 │   ├── index.css
 │   ├── main.tsx
 │   ├── test-setup.ts
 │   └── vite-env.d.ts
+├── test/
+│   ├── a11y/
+│   │   └── a11y.test.ts
+│   ├── visual/
+│   │   └── screenshots.test.ts
+│   ├── crdt-memory-store.test.ts
+│   ├── git-sync-edge.test.ts
+│   └── wasm-state.test.ts
 ├── AGENTS.md
+├── CHANGELOG.md
 ├── INDEX.html
 ├── PROJECT_README.md
 ├── README.md
 ├── SRC.md
+├── lighthouserc.json
 ├── package.json
+├── stryker.conf.json
 ├── tsconfig.json
 └── vite.config.ts
 ```
@@ -116,15 +148,25 @@ swal-agent-runner/
 | Component | Path | Purpose |
 |---|---|---|
 | **Agent Planner & Loop** | `src/agent/agent-loop.ts` | ReAct decision loop (Plan → Act → Observe → Report) |
-| **Agent Tools** | `src/agent/agent-tools.ts` | Headless execution primitives (read, write, run, diff, memory) |
+| **Foreman Orchestrator** | `src/agent/foreman-loop.ts` | Multi-agent orchestration: task decomposition, parallel dispatch, branch merging |
+| **Agent Tools** | `src/agent/agent-tools.ts` | Headless execution primitives (read, write, run, diff, memory, python) |
+| **Gestalt Bridge** | `src/services/gestalt/gestalt-bridge.ts` | Gestalt WASM worker bridge with Proxy pattern, event forwarding |
 | **LLM Provider Manager** | `src/services/llm/llm-provider-manager.ts` | Multi-LLM provider abstraction & key/token management |
 | **Gemini OAuth2 PKCE** | `src/services/llm/providers/gemini-oauth.ts` | Google AI Pro OAuth2 PKCE authentication flow handler |
 | **OpenRouter Provider** | `src/services/llm/providers/openrouter-provider.ts` | OpenRouter unified LLM API client |
 | **OpenCodeGo Provider** | `src/services/llm/providers/opencode-provider.ts` | OpenAI-compatible custom API endpoint handler |
 | **Git Workspace Service** | `src/services/git/git-service.ts` | `isomorphic-git` clone/commit/diff/push engine |
+| **Git Sync Service** | `src/services/git/git-sync-service.ts` | Multi-node git sync: auto-pull/push, conflict detection |
 | **Xavier Memory Node** | `src/services/memory/xavier-memory-node.ts` | Local IndexedDB vector memory store |
 | **edge-mesh P2P Sync** | `src/services/memory/edge-mesh-sync.ts` | Real-time WebRTC pairing with PC Xavier master node |
+| **Device Identity** | `src/services/mesh/device-identity.ts` | Persistent device ID (IndexedDB) with auto type detection |
+| **CRDT Event Bus** | `src/services/mesh/crdt-event-bus.ts` | P2P event bus over Yjs shared types |
+| **CRDT Memory Store** | `src/services/mesh/crdt-memory-store.ts` | Working memory P2P sync via Y.Map with TTL |
+| **Edge Mesh Client** | `src/services/mesh/edge-mesh-client.ts` | Dual-mode mesh: legacy PeerJS 1:1 + y-webrtc multi-peer rooms |
+| **MeshPanel UI** | `src/components/MeshPanel.tsx` | Multi-peer mesh management UI (device identity, peer list, room actions) |
 | **WebContainer Runner** | `src/services/runtime/webcontainer-runner.ts` | Programmatic Wasm Node.js process executor |
+| **Python Runner** | `src/services/runtime/python-runner.ts` | Pyodide WASM Python runtime with pip support |
+| **Gesture Worker** | `src/workers/gestalt-worker.ts` | Web Worker for Gestalt WASM engine (MockEngine + WASM loader) |
 
 ---
 
@@ -142,6 +184,24 @@ npm run build
 
 # Preview production build locally
 npm run preview
+
+# Run all unit and integration tests (vitest)
+npm run test
+
+# Run mutation testing (stryker)
+npm run test:mutation
+
+# Run accessibility audit (requires Playwright)
+npx playwright test test/a11y/
+
+# Run visual regression tests (requires Playwright)
+npx playwright test test/visual/
+
+# Run DAST security scan (requires Docker + OWASP ZAP)
+bash test/security/dast.sh
+
+# Run Lighthouse CI performance audit
+npx lhci collect
 ```
 
 ---

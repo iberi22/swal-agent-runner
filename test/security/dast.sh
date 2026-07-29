@@ -131,18 +131,21 @@ mkdir -p "${REPORT_DIR}"
 
 case "${SCAN_TYPE}" in
   quick)
-    # Spider-only — faster but less thorough
+    # Baseline scan — spider (1 min) + passive scan (faster, less thorough)
+    # See: https://www.zaproxy.org/docs/docker/baseline-scan/
     docker run --rm \
       --add-host host.docker.internal:host-gateway \
       -v "${REPORT_DIR}:/zap/wrk:rw" \
       "${ZAP_IMAGE}" \
-      zap-spider.py \
+      zap-baseline.py \
         -t "${TARGET_URL}" \
         -r zap-report.html \
+        -I \
         ${ZAP_OPTIONS:-}
     ;;
   full)
-    # Full active-scan — thorough but slower
+    # Full active scan — spider + ajax spider + active scan (thorough but slower)
+    # See: https://www.zaproxy.org/docs/docker/full-scan/
     docker run --rm \
       --add-host host.docker.internal:host-gateway \
       -v "${REPORT_DIR}:/zap/wrk:rw" \
@@ -150,6 +153,8 @@ case "${SCAN_TYPE}" in
       zap-full-scan.py \
         -t "${TARGET_URL}" \
         -r zap-report.html \
+        -I \
+        -a \
         ${ZAP_OPTIONS:-}
     ;;
 esac
