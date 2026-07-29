@@ -1,0 +1,11 @@
+/app/gestalt-wasm/target/wasm32-unknown-unknown/release/deps/serde_wasm_bindgen-6c081c19801dd9ae.d: /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/lib.rs /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/de.rs /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/error.rs /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/ser.rs /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/../README.md
+
+/app/gestalt-wasm/target/wasm32-unknown-unknown/release/deps/libserde_wasm_bindgen-6c081c19801dd9ae.rlib: /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/lib.rs /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/de.rs /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/error.rs /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/ser.rs /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/../README.md
+
+/app/gestalt-wasm/target/wasm32-unknown-unknown/release/deps/libserde_wasm_bindgen-6c081c19801dd9ae.rmeta: /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/lib.rs /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/de.rs /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/error.rs /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/ser.rs /home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/../README.md
+
+/home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/lib.rs:
+/home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/de.rs:
+/home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/error.rs:
+/home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/ser.rs:
+/home/jules/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-wasm-bindgen-0.6.5/src/../README.md:

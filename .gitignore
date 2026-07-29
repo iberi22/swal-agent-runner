@@ -35,3 +35,7 @@ reports/
 xavier_memory.db
 xavier_memory.db-shm
 xavier_memory.db-wal
+
+# Rust build artifacts
+target/
+gestalt-wasm/target/
