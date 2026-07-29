@@ -44,49 +44,91 @@ import type { CrdtEventBus, MeshEvent } from '../mesh/crdt-event-bus';
 
 // ── Types (mirrors gestalt-wasm/lib.rs wasm-bindgen exports) ─────────
 
+/**
+ * Specification for an individual subagent command execution.
+ */
 export interface AgentSpec {
+  /** Unique ID of the agent within the run. */
   id: string;
+  /** Command to execute (e.g. build, test, lint). */
   command: string;
+  /** Arguments to pass to the command. */
   args: string[];
   [key: string]: unknown;
 }
 
+/**
+ * Specification details for running a workflow containing multiple agents.
+ */
 export interface RunSpec {
+  /** The base Git reference (commit hash, branch name, or tag) from which the run starts. */
   base_ref: string;
+  /** Brief description or identifier of the task being executed. */
   task: string;
+  /** Array of agent specifications representing individual tasks. */
   agents: AgentSpec[];
+  /** Maximum number of agents running in parallel. */
   max_parallel: number;
+  /** Execution timeout limit in milliseconds. */
   timeout: number;
+  /** True to automatically push branches or outcomes to remote on success. */
   push: boolean;
+  /** Optional branch where results should be merged or integrated. */
   integration_branch?: string;
   [key: string]: unknown;
 }
 
+/**
+ * Result of a single agent execution run.
+ */
 export interface AgentResult {
+  /** Unique ID of the execution agent. */
   agent_id: string;
+  /** standard output log of the command execution. */
   output?: string;
+  /** Error message, if execution failed. */
   error?: string;
+  /** Active work branch used by the agent. */
   branch?: string;
+  /** Array of file paths changed by this agent execution. */
   changed_files: string[];
+  /** Time spent executing the agent's tasks, in milliseconds. */
   duration_ms: number;
   [key: string]: unknown;
 }
 
+/**
+ * Final consolidated report of a complete multi-agent RunSpec execution.
+ */
 export interface RunReport {
+  /** Unique ID of this execution run. */
   run_id: string;
+  /** Task description. */
   task: string;
+  /** List of execution outcomes for each agent. */
   agents: AgentResult[];
+  /** Overall execution duration in milliseconds. */
   duration_ms: number;
+  /** List of workspace branch names successfully integrated/merged. */
   merged_branches: string[];
+  /** List of conflicts or file paths that caused merge collisions. */
   conflicts: string[];
+  /** Path to event logs detailing execution steps. */
   events_path: string;
+  /** True if all agents completed successfully with no fatal errors or unresolved conflicts. */
   success: boolean;
   [key: string]: unknown;
 }
 
+/**
+ * Status snapshot of the Gestalt engine and WASM module.
+ */
 export interface GestaltStatus {
+  /** True if the bridge has initialized the worker. */
   initialized: boolean;
+  /** True if the real Rust-compiled WASM module has successfully loaded in the worker. */
   wasmLoaded: boolean;
+  /** Type of the active Gestalt engine runner ('mock' | 'wasm' | 'none'). */
   engineType: 'mock' | 'wasm' | 'none';
 }
 
@@ -132,41 +174,115 @@ const GESTALT_EVENT_CHANNEL = 'gestalt-events';
 
 // ── GestaltBridge ───────────────────────────────────────────────────
 
+/**
+ * GestaltBridge Class
+ * ==================
+ * Manages communication between the main thread and the background Gestalt worker.
+ * Queues API requests during initialization, processes message responses with timeouts,
+ * and publishes execution events to the CRDT event bus for distributed sync.
+ */
 export class GestaltBridge {
+  /**
+   * Internal state of the bridge.
+   * @private
+   */
   private _state: BridgeState = 'idle';
+
+  /**
+   * The background web worker instance.
+   * @private
+   */
   private worker: Worker | null = null;
+
+  /**
+   * BroadcastChannel used to capture native WASM events from the worker context.
+   * @private
+   */
   private broadcastChannel: BroadcastChannel | null = null;
+
+  /**
+   * The active CRDT event bus used to distribute event logs.
+   * @private
+   */
   private crdtEventBus: CrdtEventBus | null = null;
 
-  /** Queue of calls made before the worker was ready. */
+  /**
+   * Queue of calls made before the worker was ready.
+   * @private
+   */
   private callQueue: QueuedCall[] = [];
 
-  /** Map of pending requestId → resolver for in-flight calls. */
+  /**
+   * Map of pending requestId → resolver for in-flight calls.
+   * @private
+   */
   private pendingRequests: Map<string, { resolve: (v: unknown) => void; reject: (e: unknown) => void }> = new Map();
 
-  /** Monotonically increasing request counter for unique IDs. */
+  /**
+   * Monotonically increasing request counter for unique IDs.
+   * @private
+   */
   private requestCounter = 0;
 
-  /** Worker 'ready' promise — resolves once the worker sends its ready message. */
+  /**
+   * Worker 'ready' promise — resolves once the worker sends its ready message.
+   * @private
+   */
   private readyPromise: Promise<void>;
+
+  /**
+   * Resolver function for the ready promise.
+   * @private
+   */
   private resolveReady!: () => void;
+
+  /**
+   * Rejecter function for the ready promise.
+   * @private
+   */
   private rejectReady!: (reason: unknown) => void;
 
-  /** Worker error state. */
+  /**
+   * Worker error state.
+   * @private
+   */
   private _error: string | null = null;
 
-  /** Connection to room-joined auto-init (for cleanup). */
+  /**
+   * Connection to room-joined auto-init (for cleanup).
+   * @private
+   */
   private meshLifecycleBound = false;
+
+  /**
+   * Handler function for mesh:room-joined events.
+   * @private
+   */
   private meshEventHandler: ((e: Event) => void) | null = null;
 
   // ── Diagnostics ──────────────────────────────────────────────────
 
-  /** Total calls made through the bridge (including queued). */
+  /**
+   * Total calls made through the bridge (including queued).
+   * @private
+   */
   private totalCalls = 0;
 
-  /** Event count forwarded to CrdtEventBus. */
+  /**
+   * Event count forwarded to CrdtEventBus.
+   * @private
+   */
   private forwardedEventCount = 0;
 
+  /**
+   * Internal flag signifying if the WASM module was loaded.
+   * @private
+   */
+  private _wasmLoaded = false;
+
+  /**
+   * Constructs an instance of GestaltBridge.
+   */
   constructor() {
     this.readyPromise = new Promise<void>((resolve, reject) => {
       this.resolveReady = resolve;
@@ -176,27 +292,37 @@ export class GestaltBridge {
 
   // ── Public Accessors ─────────────────────────────────────────────
 
+  /**
+   * Gets the current lifecycle state of the bridge.
+   */
   get state(): BridgeState {
     return this._state;
   }
 
+  /**
+   * Gets the last error message recorded by the worker, or null.
+   */
   get error(): string | null {
     return this._error;
   }
 
-  /** Promise that resolves once the Gestalt engine is ready. */
+  /**
+   * Gets the promise that resolves once the Gestalt worker engine is fully ready.
+   */
   get ready(): Promise<void> {
     return this.readyPromise;
   }
 
-  /** True if the worker reported a WASM module (vs mock). */
+  /**
+   * True if the worker reported a WASM module was loaded successfully.
+   */
   get wasmLoaded(): boolean {
     return this._state === 'ready' && this._wasmLoaded;
   }
 
-  private _wasmLoaded = false;
-
-  /** Diagnostics snapshot. */
+  /**
+   * Gets a diagnostic snapshot of the bridge.
+   */
   get diagnostics(): {
     state: BridgeState;
     wasmLoaded: boolean;
@@ -228,6 +354,8 @@ export class GestaltBridge {
    * Safe to call multiple times — subsequent calls while 'initializing'
    * or 'ready' return the existing ready promise. To reinitialize,
    * call destroy() first.
+   *
+   * @returns A promise that resolves when initialization completes.
    */
   async initGestalt(): Promise<void> {
     if (this._state === 'initializing' || this._state === 'ready') {
@@ -284,13 +412,13 @@ export class GestaltBridge {
   // ── Core API ─────────────────────────────────────────────────────
 
   /**
-   * Execute a RunSpec through the Gestalt Foreman.
+   * Execute a RunSpec through the Gestalt Foreman inside the worker.
    *
    * If the engine isn't ready yet, the call is queued and replayed
    * once initialization completes.
    *
-   * @param spec - The RunSpec describing agents, task, and config
-   * @returns RunReport with agent results
+   * @param spec - The RunSpec describing agents, task, and configuration.
+   * @returns A promise resolving to a RunReport with agent results.
    */
   executeRunSpec(spec: RunSpec): Promise<RunReport> {
     this.totalCalls++;
@@ -305,6 +433,7 @@ export class GestaltBridge {
    * will also arrive via BroadcastChannel.
    *
    * @param bus - Optional CrdtEventBus instance (defaults to edgeMeshClient.crdtEventBus)
+   * @returns A promise resolving when subscription is set up.
    */
   async subscribeEvents(bus?: CrdtEventBus): Promise<void> {
     const targetBus = bus ?? (edgeMeshClient.crdtEventBus as unknown as CrdtEventBus);
@@ -327,6 +456,8 @@ export class GestaltBridge {
 
   /**
    * Get current engine status from the worker.
+   *
+   * @returns A promise resolving to the GestaltStatus object.
    */
   async getStatus(): Promise<GestaltStatus> {
     const result = await this.dispatch<GestaltStatus>('get_status');
@@ -336,7 +467,7 @@ export class GestaltBridge {
   /**
    * Terminate the Gestalt engine.
    *
-   * Kills the worker, closes the BroadcastChannel, resets state.
+   * Kills the worker, closes the BroadcastChannel, and resets bridge state.
    * After calling this, initGestalt() can be called again to restart.
    */
   destroy(): void {
@@ -434,7 +565,10 @@ export class GestaltBridge {
     console.log('[GestaltBridge] Mesh lifecycle bound');
   }
 
-  /** Stub that gets replaced in bindMeshLifecycle. */
+  /**
+   * Stub that gets replaced in bindMeshLifecycle.
+   * @private
+   */
   private unbindMeshLifecycle(): void {
     this.meshLifecycleBound = false;
     this.meshEventHandler = null;
@@ -448,6 +582,8 @@ export class GestaltBridge {
    * Returns a promise that resolves when the worker responds with the
    * matching requestId. If the engine isn't ready yet, the call is
    * queued and replayed once ready.
+   *
+   * @private
    */
   private async dispatch<T>(type: string, payload?: unknown): Promise<T> {
     const requestId = `req_${++this.requestCounter}_${Date.now()}`;
@@ -471,6 +607,8 @@ export class GestaltBridge {
 
   /**
    * Send a message to the worker and wait for the response.
+   *
+   * @private
    */
   private sendToWorker<T>(type: string, payload?: unknown, requestId?: string): Promise<T> {
     const rid = requestId ?? `req_${++this.requestCounter}_${Date.now()}`;
@@ -510,6 +648,8 @@ export class GestaltBridge {
 
   /**
    * Flush the call queue — replay all queued calls against the real worker.
+   *
+   * @private
    */
   private flushQueue(): void {
     const queue = this.callQueue;
@@ -524,6 +664,11 @@ export class GestaltBridge {
 
   // ── Internal: Message Handling ───────────────────────────────────
 
+  /**
+   * Processes an incoming message from the Web Worker.
+   *
+   * @private
+   */
   private handleWorkerMessage(e: MessageEvent<WorkerMessage>): void {
     const { type, payload, requestId } = e.data;
 
@@ -604,6 +749,11 @@ export class GestaltBridge {
     }
   }
 
+  /**
+   * Processes a fatal Web Worker event error.
+   *
+   * @private
+   */
   private handleWorkerError(err: ErrorEvent): void {
     const msg = err.message || 'Unknown Worker error';
     console.error('[GestaltBridge] Worker error event:', msg);
@@ -623,6 +773,8 @@ export class GestaltBridge {
    *
    * Parses the JSON, maps the event type to MeshEvent.type,
    * and publishes to the CRDT event bus (replicated to y-webrtc peers).
+   *
+   * @private
    */
   private forwardEventToCrdt(eventJson: string, bus: CrdtEventBus): void {
     try {
@@ -653,6 +805,8 @@ export class GestaltBridge {
    * When the real WASM module is running in the worker, it publishes events
    * through a BroadcastChannelBus. The main thread picks them up here
    * and forwards them to the CrdtEventBus.
+   *
+   * @private
    */
   private handleBroadcastEvent(event: MessageEvent): void {
     if (!this.crdtEventBus) return;
@@ -666,6 +820,8 @@ export class GestaltBridge {
    *
    * This is a fallback until the WASM BroadcastChannel push is implemented.
    * Polls every 2 seconds and forwards new events to CrdtEventBus.
+   *
+   * @private
    */
   private startEventPolling(bus: CrdtEventBus): void {
     let destroyed = false;

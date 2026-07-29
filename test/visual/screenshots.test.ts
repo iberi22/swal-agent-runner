@@ -13,7 +13,7 @@ test.describe('Visual Regression — Core Views', () => {
   });
 
   test('mesh tab view matches baseline', async ({ page }) => {
-    await page.click('[data-tab="mesh"]');
+    await page.locator('header nav button', { hasText: 'Mesh' }).click();
     await page.waitForTimeout(500);
     await expect(page).toHaveScreenshot('mesh-tab.png', {
       maxDiffPixelRatio: 0.02,
@@ -21,7 +21,7 @@ test.describe('Visual Regression — Core Views', () => {
   });
 
   test('new task view matches baseline', async ({ page }) => {
-    await page.click('[data-tab="new-task"]');
+    await page.locator('header nav button', { hasText: 'New Task' }).click();
     await page.waitForTimeout(500);
     await expect(page).toHaveScreenshot('new-task-tab.png', {
       maxDiffPixelRatio: 0.02,
@@ -29,7 +29,7 @@ test.describe('Visual Regression — Core Views', () => {
   });
 
   test('memory sync panel matches baseline', async ({ page }) => {
-    await page.click('[data-tab="memory"]');
+    await page.locator('header nav button', { hasText: 'Sync' }).click();
     await page.waitForTimeout(500);
     await expect(page).toHaveScreenshot('memory-tab.png', {
       maxDiffPixelRatio: 0.02,

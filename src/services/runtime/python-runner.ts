@@ -1,11 +1,32 @@
 import { GitWorkspaceService } from '../git/git-service';
 
+/**
+ * PythonRunnerService
+ * ===================
+ * Service managing execution of Python code within the browser using Pyodide WASM runtime.
+ * Provides capabilities to lazy-initialize Pyodide, execute scripts capturing output/errors,
+ * install packages via pip (micropip), and mount files from the local Git workspace into
+ * Pyodide's virtual filesystem.
+ */
 export class PythonRunnerService {
+  /**
+   * Promise that resolves when Pyodide has finished loading and initializing.
+   * @private
+   */
   private static pyodidePromise: Promise<any> | null = null;
+
+  /**
+   * Cache of the initialized Pyodide instance.
+   * @private
+   */
   private static pyodideInstance: any = null;
 
   /**
-   * Lazy load and initialize the Pyodide instance.
+   * Lazy loads and initializes the Pyodide WASM runtime.
+   * Downloads Pyodide from public CDN if not already loaded in the window environment.
+   *
+   * @returns A promise resolving to the initialized Pyodide instance.
+   * @throws An error if called in a non-browser environment or if initialization/loading fails.
    */
   public static async getInstance(): Promise<any> {
     if (this.pyodideInstance) {
@@ -53,7 +74,12 @@ export class PythonRunnerService {
   }
 
   /**
-   * Run Python code and capture standard output/error.
+   * Runs raw Python code in the Pyodide runtime environment.
+   * Automatically intercepts standard output/error and forwards them to `onOutput` if provided.
+   *
+   * @param code - The Python script/code block to execute.
+   * @param onOutput - Optional callback that fires whenever stdout/stderr receives newline-buffered logs.
+   * @returns A promise resolving to an object containing the process `exitCode` (0 for success, 1 for failure) and complete standard `output` logs.
    */
   public static async runCode(
     code: string,
@@ -90,7 +116,11 @@ export class PythonRunnerService {
   }
 
   /**
-   * Install pip packages using micropip.
+   * Installs third-party pip packages into the browser-side Pyodide runtime using `micropip`.
+   *
+   * @param packageName - The exact name of the pip package to install.
+   * @param onOutput - Optional callback that captures progress output logs.
+   * @returns A promise resolving to an object containing the process `exitCode` (0 for success, 1 for failure) and complete standard `output` logs.
    */
   public static async pipInstall(
     packageName: string,
@@ -128,7 +158,11 @@ await micropip.install('${packageName}')
   }
 
   /**
-   * Mount git workspace project files into Pyodide virtual FS recursively.
+   * Mounts files and folders of a Git workspace project recursively into Pyodide's virtual filesystem (FS).
+   * This allows the Python scripts executing in Pyodide to read/write workspace project files natively.
+   *
+   * @param projectName - The name of the project whose files are to be mounted.
+   * @returns A promise resolving when the workspace files have finished being fully traversed and written into Pyodide's FS.
    */
   public static async mountProjectFiles(projectName: string): Promise<void> {
     const pyodide = await this.getInstance();

@@ -20,6 +20,12 @@ import { deviceIdentity, type DeviceInfo, type DeviceType } from '../services/me
 
 // ── Helpers ──
 
+/**
+ * Returns a React element rendering the appropriate Lucide icon corresponding to the device type.
+ *
+ * @param type - The device type string.
+ * @returns React node representation of the device icon.
+ */
 function deviceTypeIcon(type: DeviceType): React.ReactNode {
   switch (type) {
     case 'phone':
@@ -35,6 +41,7 @@ function deviceTypeIcon(type: DeviceType): React.ReactNode {
   }
 }
 
+/** Mapping from DeviceType enumeration to human-friendly display names. */
 const deviceTypeLabel: Record<DeviceType, string> = {
   phone: 'Phone',
   tablet: 'Tablet',
@@ -43,6 +50,12 @@ const deviceTypeLabel: Record<DeviceType, string> = {
   unknown: 'Unknown',
 };
 
+/**
+ * Formats a raw numerical timestamp into a human-readable relative time string (e.g. "Just now", "5m ago", "2h ago").
+ *
+ * @param timestamp - The numerical timestamp to format.
+ * @returns A human-readable relative time string.
+ */
 function formatRelativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp;
   if (diff < 60_000) return 'Just now';
@@ -51,6 +64,12 @@ function formatRelativeTime(timestamp: number): string {
   return `${Math.floor(diff / 86_400_000)}d ago`;
 }
 
+/**
+ * Truncates long peer IDs to make them layout-friendly (e.g. "abcdef123456" into "abcdef12…3456").
+ *
+ * @param id - The peer ID to truncate.
+ * @returns The truncated peer ID string.
+ */
 function truncatePeerId(id: string): string {
   if (id.length <= 12) return id;
   return `${id.slice(0, 8)}…${id.slice(-4)}`;
@@ -58,6 +77,13 @@ function truncatePeerId(id: string): string {
 
 // ── Component ──
 
+/**
+ * MeshPanel Component
+ * ===================
+ * A React functional component representing the Multi-Peer Mesh network room manager panel.
+ * Displays local device identity (type, ID, created dates, etc.), allows editing local device display names,
+ * handles room connection/disconnection inputs, and lists active WebRTC peers in the connected room in real-time.
+ */
 export const MeshPanel: React.FC = () => {
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [meshRoom, setMeshRoom] = useState('');
