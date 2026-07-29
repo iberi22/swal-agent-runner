@@ -56,6 +56,7 @@ npm run build
 ## 📜 Protocol & Documentation
 
 This project strictly adheres to the **SWAL GitCore Protocol v3.9.0**:
+- [docs/deployment.md](docs/deployment.md) — Production Deployment, Configuration, Monitoring & Troubleshooting Guide
 - [AGENTS.md](file:///home/belal/proyectosSWAL/swal-agent-runner/AGENTS.md) — Agent guidelines & operational rules
 - [SRC.md](file:///home/belal/proyectosSWAL/swal-agent-runner/SRC.md) — Source code reference
 - [.gitcore/ARCHITECTURE.md](file:///home/belal/proyectosSWAL/swal-agent-runner/.gitcore/ARCHITECTURE.md) — Architectural invariants

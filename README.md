@@ -134,6 +134,7 @@ pnpm run dev
 This project strictly adheres to the **SWAL GitCore Protocol v3.9.0**:
 
 *   **[docs/getting-started.md](docs/getting-started.md) — Comprehensive Getting Started & User Guide** 👈 Start here!
+*   **[docs/deployment.md](docs/deployment.md) — Production Deployment, Configuration, Monitoring & Troubleshooting Guide**
 *   **[AGENTS.md](AGENTS.md) — Developer guidelines & agent operational rules**
 *   **[SRC.md](SRC.md) — Project source code reference & directory mappings**
 *   **[.gitcore/ARCHITECTURE.md](.gitcore/ARCHITECTURE.md) — Core architectural invariants**
