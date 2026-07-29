@@ -132,6 +132,26 @@
       "last_tested": "2026-07-29",
       "implemented_in": ".github/workflows/ci.yml, src/agent/__tests__/, src/services/git/__tests__/, src/services/llm/__tests__/, src/services/memory/__tests__/, src/services/mesh/__tests__/",
       "notes": "GitHub Actions CI workflow: pnpm install → tsc --noEmit → vitest run → pnpm build. 64 tests covering 9 test files across agent loop, agent tools, CRDT event bus, CRDT graph, git service, LLM provider manager, memory transport, sync queue, and Xavier memory node. All tests pass with jsdom environment and fake-indexeddb polyfill."
+    },
+    {
+      "id": "FEAT-MESH-02",
+      "name": "Persistent Device Identity",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/services/mesh/device-identity.ts, src/services/mesh/edge-mesh-client.ts",
+      "notes": "DeviceIdentityManager with IndexedDB persistence. UUID format swal-{uuid-v4-suffix}. Auto device type detection (phone/tablet/pc/web). Editable name. Exposed via edgeMeshClient.deviceId. Created in Ola 6."
+    },
+    {
+      "id": "FEAT-MESH-03",
+      "name": "Multi-Peer y-webrtc Room Mesh",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/services/mesh/edge-mesh-client.ts, src/services/mesh/crdt-sync.ts, src/components/MeshPanel.tsx",
+      "notes": "EdgeMeshClient dual-mode: legacy PeerJS 1:1 + y-webrtc multi-peer rooms. joinRoom()/leaveRoom() methods. CRDT sync wired into app lifecycle (auto-join on startup). MeshPanel UI showing device identity, peer list, room status. Navbar P2P Mesh tab with Wifi icon. Created in Ola 6."
     }
   ]
 }

@@ -10,7 +10,7 @@ import { CodingTask } from './types';
 import { AgentLoopRunner } from './agent/agent-loop';
 import { GeminiOAuthService } from './services/llm/providers/gemini-oauth';
 import { edgeMeshClient } from './services/mesh/edge-mesh-client';
-import { PairingView } from './components/PairingView';
+import { MeshPanel } from './components/MeshPanel';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<'projects' | 'new-task' | 'progress' | 'results' | 'memory' | 'mesh'>('projects');
@@ -111,7 +111,7 @@ export function App() {
           )}
 
           {activeTab === 'mesh' && (
-            <PairingView onClose={() => setActiveTab('projects')} />
+            <MeshPanel />
           )}
         </div>
       </main>
