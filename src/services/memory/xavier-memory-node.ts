@@ -1,5 +1,6 @@
 import { openDB, IDBPDatabase } from 'idb';
 import { MemoryChunk } from '../../types';
+import { edgeMeshClient } from '../mesh/edge-mesh-client';
 
 const DB_NAME = 'swal_xavier_memory_node';
 const DB_VERSION = 1;
@@ -25,6 +26,24 @@ export class XavierMemoryNode {
       syncedToMaster: false,
     };
     await db.put('chunks', fullChunk);
+
+    // Dual-write: working memories también van al CrdtMemoryStore para sync P2P
+    if (chunk.category === 'working') {
+      try {
+        const crdtMemStore = (edgeMeshClient as any).crdtMemoryStore;
+        if (crdtMemStore) {
+          crdtMemStore.add({
+            content: chunk.content,
+            source: chunk.source,
+            projectId: chunk.projectId,
+            ttl: 24 * 60 * 60 * 1000,
+          });
+        }
+      } catch {
+        // CrdtMemoryStore no disponible — no crítico
+      }
+    }
+
     return fullChunk;
   }
 

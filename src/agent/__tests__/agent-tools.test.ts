@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
 describe('AGENT_TOOLS', () => {
-  it('should export 7 tool declarations', async () => {
+  it('should export 9 tool declarations', async () => {
     const { AGENT_TOOLS } = await import('../agent-tools');
-    expect(AGENT_TOOLS.length).toBe(7);
+    expect(AGENT_TOOLS.length).toBe(9);
   });
 
   it('should include read_file tool with proper schema', async () => {
@@ -21,7 +21,7 @@ describe('AGENT_TOOLS', () => {
     expect(writeFile!.parameters.required).toEqual(['path', 'content']);
   });
 
-  it('should include all seven tools with correct names', async () => {
+  it('should include all nine tools with correct names', async () => {
     const { AGENT_TOOLS } = await import('../agent-tools');
     const names = AGENT_TOOLS.map((t: any) => t.name).sort();
     expect(names).toEqual([
@@ -29,8 +29,10 @@ describe('AGENT_TOOLS', () => {
       'git_diff',
       'list_directory',
       'memory_search',
+      'pip_install',
       'read_file',
       'run_command',
+      'run_python',
       'write_file',
     ]);
   });

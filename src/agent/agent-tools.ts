@@ -80,6 +80,28 @@ export const AGENT_TOOLS: AgentToolDeclaration[] = [
       required: ['summary', 'commitMessage'],
     },
   },
+  {
+    name: 'run_python',
+    description: 'Execute Python code inside the browser Pyodide runtime. Supports Python 3.12 stdlib.',
+    parameters: {
+      type: 'object',
+      properties: {
+        code: { type: 'string', description: 'Python code to execute' },
+      },
+      required: ['code'],
+    },
+  },
+  {
+    name: 'pip_install',
+    description: 'Install a Python package via micropip inside the Pyodide runtime.',
+    parameters: {
+      type: 'object',
+      properties: {
+        package: { type: 'string', description: 'Package name to install (e.g. numpy, pandas)' },
+      },
+      required: ['package'],
+    },
+  },
 ];
 
 export class AgentToolExecutor {
@@ -166,6 +188,34 @@ export class AgentToolExecutor {
           summary,
           commitMessage,
         };
+      }
+
+      case 'run_python': {
+        const code = args.code as string;
+        if (onLog) onLog(`Executing Python code (${code.length} chars)...`);
+        try {
+          const { PythonRunnerService } = await import('../services/runtime/python-runner');
+          const res = await PythonRunnerService.runCode(code, (chunk) => {
+            if (onLog) onLog(`[pyout] ${chunk.trim()}`);
+          });
+          return { output: `Exit Code ${res.exitCode}:\n${res.output}` };
+        } catch (err: any) {
+          return { output: `Python execution error: ${err.message || err}` };
+        }
+      }
+
+      case 'pip_install': {
+        const pkg = args.package as string;
+        if (onLog) onLog(`Installing Python package: ${pkg}...`);
+        try {
+          const { PythonRunnerService } = await import('../services/runtime/python-runner');
+          const res = await PythonRunnerService.pipInstall(pkg, (chunk) => {
+            if (onLog) onLog(`[pip] ${chunk.trim()}`);
+          });
+          return { output: `Exit Code ${res.exitCode}:\n${res.output}` };
+        } catch (err: any) {
+          return { output: `pip install error: ${err.message || err}` };
+        }
       }
 
       default:

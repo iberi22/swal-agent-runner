@@ -2,6 +2,7 @@ import { YjsAdapter } from './yjs-adapter';
 import type { ITransport } from './transport';
 import { XavierPairStatus } from '../../types';
 import { CrdtEventBus } from './crdt-event-bus';
+import { CrdtMemoryStore } from './crdt-memory-store';
 import { deviceIdentity } from './device-identity';
 import { initCrdtSync, type CrdtSyncInstance } from './crdt-sync';
 
@@ -24,6 +25,7 @@ export class EdgeMeshClient {
   private _paired = false;
   private _peerEndpoint = '';
   private _eventBus: CrdtEventBus | null = null;
+  private _crdtMemoryStore: CrdtMemoryStore | null = null;
   private _deviceId: string = '';
   private _crdtSync: CrdtSyncInstance | null = null;
   private _meshRoom: string = '';
@@ -61,6 +63,14 @@ export class EdgeMeshClient {
       this._eventBus = new CrdtEventBus(this._yjs.doc);
     }
     return this._eventBus;
+  }
+
+  /** Obtener o crear el CrdtMemoryStore para P2P working memory sync. */
+  get crdtMemoryStore(): CrdtMemoryStore {
+    if (!this._crdtMemoryStore) {
+      this._crdtMemoryStore = new CrdtMemoryStore(this._yjs.doc);
+    }
+    return this._crdtMemoryStore;
   }
 
   // ── Legacy 1:1 Pairing (PeerJS) ──
