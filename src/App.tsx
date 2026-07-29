@@ -10,6 +10,7 @@ import { CodingTask } from './types';
 import { AgentLoopRunner } from './agent/agent-loop';
 import { GeminiOAuthService } from './services/llm/providers/gemini-oauth';
 import { EdgeMeshSyncService } from './services/memory/edge-mesh-sync';
+import { GitSyncService } from './services/git/git-sync-service';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<'projects' | 'new-task' | 'progress' | 'results' | 'memory'>('projects');
@@ -39,9 +40,21 @@ export function App() {
       }
     }
 
-    // Start background auto sync loop for Xavier memory
+    // Start background auto sync loop for Xavier memory and Git repos
     EdgeMeshSyncService.startAutoSyncLoop(30000);
-    return () => EdgeMeshSyncService.stopAutoSyncLoop();
+    GitSyncService.startAutoSync(30000);
+
+    const handleConflict = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      alert(`⚠️ Git Merge Conflict Detected in project "${detail.projectName}":\n${detail.message}`);
+    };
+    window.addEventListener('git-sync-conflict', handleConflict);
+
+    return () => {
+      EdgeMeshSyncService.stopAutoSyncLoop();
+      GitSyncService.stopAutoSync();
+      window.removeEventListener('git-sync-conflict', handleConflict);
+    };
   }, []);
 
   const handleLaunchTask = (task: CodingTask) => {
