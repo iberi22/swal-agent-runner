@@ -141,7 +141,7 @@
       "passes": true,
       "last_tested": "2026-07-29",
       "implemented_in": "src/services/mesh/device-identity.ts, src/services/mesh/edge-mesh-client.ts",
-      "notes": "DeviceIdentityManager with IndexedDB persistence. UUID format swal-{uuid-v4-suffix}. Auto device type detection (phone/tablet/pc/web). Editable name. Exposed via edgeMeshClient.deviceId. Created in Ola 6."
+      "notes": "DeviceIdentityManager with IndexedDB persistence. UUID format swal-{uuid-v4-suffix}. Auto device type detection (phone/tablet/pc/web). Editable name. Exposed via edgeMeshClient.deviceId. Ola 6."
     },
     {
       "id": "FEAT-MESH-03",
@@ -151,7 +151,67 @@
       "passes": true,
       "last_tested": "2026-07-29",
       "implemented_in": "src/services/mesh/edge-mesh-client.ts, src/services/mesh/crdt-sync.ts, src/components/MeshPanel.tsx",
-      "notes": "EdgeMeshClient dual-mode: legacy PeerJS 1:1 + y-webrtc multi-peer rooms. joinRoom()/leaveRoom() methods. CRDT sync wired into app lifecycle (auto-join on startup). MeshPanel UI showing device identity, peer list, room status. Navbar P2P Mesh tab with Wifi icon. Created in Ola 6."
+      "notes": "EdgeMeshClient dual-mode: legacy PeerJS 1:1 + y-webrtc multi-peer rooms. joinRoom()/leaveRoom() methods. CRDT sync wired into app lifecycle (auto-join on startup). MeshPanel UI showing device identity, peer list, room status. Navbar P2P Mesh tab with Wifi icon. Ola 6."
+    },
+    {
+      "id": "FEAT-RUN-02",
+      "name": "Python Runtime (Pyodide WASM)",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/services/runtime/python-runner.ts",
+      "notes": "PythonRunnerService with lazy Pyodide CDN loading. runCode() with stdout/stderr capture. pipInstall() via micropip. mountProjectFiles() for git workspace. 6 tests. Ola 6 (Jules PR #12)."
+    },
+    {
+      "id": "FEAT-AGT-02",
+      "name": "Python Agent Tools (run_python + pip_install)",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/agent/agent-tools.ts",
+      "notes": "Two new agent tools: run_python (execute Python code in Pyodide) and pip_install (install packages via micropip). 9 total agent tools. Ola 6."
+    },
+    {
+      "id": "FEAT-CRDT-04",
+      "name": "CRDT P2P Working Memory Store",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/services/mesh/crdt-memory-store.ts, src/services/memory/xavier-memory-node.ts",
+      "notes": "CrdtMemoryStore over Y.Map with TTL (24h), 500 entry cap, content_hash dedup, search. Dual-write in XavierMemoryNode for working category. Auto-replicates via y-webrtc. Ola 6."
+    },
+    {
+      "id": "FEAT-GIT-02",
+      "name": "Multi-Node Git Sync Workflow",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/services/git/git-sync-service.ts, src/services/git/git-service.ts",
+      "notes": "GitSyncService with auto-sync timer (60s). fetchChanges, pullChanges, getUnpushedCommits. Conflict detection via merge-base check. 5 tests. Ola 6 (Jules PR #13)."
+    },
+    {
+      "id": "FEAT-GST-01",
+      "name": "Gestalt WASM Worker Bridge",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/services/gestalt/gestalt-bridge.ts, src/workers/gestalt-worker.ts, src/wasm/gestalt-wasm.d.ts",
+      "notes": "GestaltBridge singleton with Proxy pattern. Web Worker with MockGestaltEngine + WASM loader. BroadcastChannel event forwarding to CrdtEventBus. bindMeshLifecycle() auto-init on mesh:room-joined. Ola 6."
+    },
+    {
+      "id": "FEAT-AGT-03",
+      "name": "Foreman Multi-Agent Orchestration",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "src/agent/foreman-loop.ts",
+      "notes": "ForemanAgentLoop: LLM task decomposition into up to 5 AgentSpecs. Parallel sub-agent dispatch via AgentLoopRunner. Branch-per-agent merge strategy. GestaltForeman JS interface mirroring Rust Foreman. Ola 6."
     }
   ]
 }
