@@ -50,6 +50,39 @@
       "status": "completed",
       "assignedAgent": "Antigravity",
       "completedAt": "2026-07-27T01:56:00Z"
+    },
+    {
+      "id": "TASK-007",
+      "featureId": "FEAT-MESH-01",
+      "title": "Implement Edge Mesh P2P Transport (PeerJS + MemoryTransport + EdgeMeshClient)",
+      "status": "completed",
+      "assignedAgent": "Kimi K3 High",
+      "completedAt": "2026-07-29T00:00:00Z"
+    },
+    {
+      "id": "TASK-008",
+      "featureId": "FEAT-CRDT-01",
+      "title": "Implement CRDT Graph, EventBus, YjsAdapter, and Sync Init",
+      "status": "completed",
+      "assignedAgent": "Kimi K3 High",
+      "completedAt": "2026-07-29T00:00:00Z"
+    },
+    {
+      "id": "TASK-009",
+      "featureId": "FEAT-PWA-02",
+      "title": "Implement Offline-First: SyncQueue, OfflineManager, Storage UI helpers",
+      "status": "completed",
+      "assignedAgent": "Kimi K3 High",
+      "completedAt": "2026-07-29T00:00:00Z"
+    },
+    {
+      "id": "TASK-010",
+      "featureId": "FEAT-F4-AUDIT",
+      "title": "Audit Fase 4: Edge Mesh + PWA Agentic quality review",
+      "status": "completed",
+      "assignedAgent": "Kimi K3 High",
+      "completedAt": "2026-07-29T00:00:00Z",
+      "notes": "See docs/issues/AUDIT-FASE4.md for full report. Score: 70%. 3 blocking issues identified."
     }
   ]
 }

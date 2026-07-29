@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, Cpu, Database, FolderGit2, GitPullRequest, Key, Sparkles } from 'lucide-react';
+import { Activity, Cpu, Database, FolderGit2, GitPullRequest, Key, Sparkles, Wifi } from 'lucide-react';
 import { LLMProviderManager } from '../services/llm/llm-provider-manager';
 import { EdgeMeshSyncService } from '../services/memory/edge-mesh-sync';
 import { XavierPairStatus } from '../types';
 import { cn } from '../lib/cn';
 
-type TabId = 'projects' | 'new-task' | 'progress' | 'results' | 'memory';
+type TabId = 'projects' | 'new-task' | 'progress' | 'results' | 'memory' | 'mesh';
 
 interface NavbarProps {
   activeTab: TabId;
@@ -24,6 +24,7 @@ const TABS: { id: TabId; label: string; shortLabel: string; icon: React.ElementT
   { id: 'progress', label: 'Agent Progress', shortLabel: 'Progress', icon: Activity },
   { id: 'results', label: 'Results & Diff', shortLabel: 'Results', icon: GitPullRequest },
   { id: 'memory', label: 'Xavier Sync', shortLabel: 'Xavier', icon: Database },
+  { id: 'mesh', label: 'P2P Mesh', shortLabel: 'Mesh', icon: Wifi },
 ];
 
 /* ── Desktop Top Navbar ──────────────────────────────── */
@@ -133,7 +134,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab, openAut
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, setActiveTab }) => {
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 border-t border-line bg-surface/95 backdrop-blur-xl pb-safe">
-      <div className="grid grid-cols-5">
+      <div className="grid grid-cols-6">
         {TABS.map(({ id, shortLabel, icon: Icon }) => {
           const active = activeTab === id;
           return (

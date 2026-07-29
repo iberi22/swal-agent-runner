@@ -4,6 +4,7 @@ import { AGENT_TOOLS, AgentToolExecutor } from './agent-tools';
 import { GitWorkspaceService } from '../services/git/git-service';
 import { XavierMemoryNode } from '../services/memory/xavier-memory-node';
 import { EdgeMeshSyncService } from '../services/memory/edge-mesh-sync';
+import { edgeMeshClient } from '../services/mesh/edge-mesh-client';
 
 const AGENT_SYSTEM_PROMPT = `You are SWAL Headless Agent Runner, an autonomous coding agent operating inside a browser PWA WebContainer.
 Your goal is to complete the assigned coding task independently without requiring interactive user terminal/editor input.
@@ -41,9 +42,19 @@ export class AgentLoopRunner {
       };
       updated.steps.push(step);
       onTaskUpdate({ ...updated });
+      publishEvent('step:progress', { stepId: step.id, phase, summary });
+    };
+
+    /** Publicar evento al bus P2P. */
+    const publishEvent = (type: string, payload: Record<string, unknown> = {}) => {
+      try {
+        edgeMeshClient.crdtEventBus.publish({ type, source: 'agent-loop', payload });
+      } catch { /* P2P event bus not available */ }
     };
 
     try {
+      publishEvent('run:started', { taskId: task.id, title: task.title });
+      publishEvent('run:phase', { phase: 'planning' });
       logStep('plan', `Initializing autonomous agent loop for project "${task.projectId}"`);
 
       // Load initial memory context
@@ -72,6 +83,7 @@ export class AgentLoopRunner {
       const activeProvider = LLMProviderManager.getActiveProvider();
       updated.status = 'executing';
       onTaskUpdate({ ...updated });
+      publishEvent('run:phase', { phase: 'executing' });
 
       let iteration = 0;
       const MAX_ITERATIONS = 20;
@@ -154,6 +166,8 @@ export class AgentLoopRunner {
               branchName: task.targetBranch,
               commitHash: sha,
             };
+            publishEvent('run:completed', { taskId: task.id, summary: result.summary });
+            publishEvent('run:phase', { phase: 'verifying' });
 
             onTaskUpdate({ ...updated });
             return updated;
@@ -166,6 +180,7 @@ export class AgentLoopRunner {
       updated.status = 'failed';
       updated.error = err.message || String(err);
       logStep('verify', `Agent task failed: ${updated.error}`, 'error');
+      publishEvent('run:failed', { taskId: task.id, error: updated.error });
       onTaskUpdate({ ...updated });
       return updated;
     }

@@ -9,10 +9,11 @@ import { AuthSettingsModal } from './components/AuthSettingsModal';
 import { CodingTask } from './types';
 import { AgentLoopRunner } from './agent/agent-loop';
 import { GeminiOAuthService } from './services/llm/providers/gemini-oauth';
-import { EdgeMeshSyncService } from './services/memory/edge-mesh-sync';
+import { edgeMeshClient } from './services/mesh/edge-mesh-client';
+import { PairingView } from './components/PairingView';
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'projects' | 'new-task' | 'progress' | 'results' | 'memory'>('projects');
+  const [activeTab, setActiveTab] = useState<'projects' | 'new-task' | 'progress' | 'results' | 'memory' | 'mesh'>('projects');
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [currentTask, setCurrentTask] = useState<CodingTask | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -39,9 +40,22 @@ export function App() {
       }
     }
 
-    // Start background auto sync loop for Xavier memory
-    EdgeMeshSyncService.startAutoSyncLoop(30000);
-    return () => EdgeMeshSyncService.stopAutoSyncLoop();
+    // EdgeMeshClient P2P — eventos de conexión
+    const handlePaired = () => console.log('[EdgeMesh] Paired with peer');
+    const handleUnpaired = () => console.log('[EdgeMesh] Unpaired');
+    edgeMeshClient.events.addEventListener('paired', handlePaired);
+    edgeMeshClient.events.addEventListener('unpaired', handleUnpaired);
+
+    // Auto-join mesh room on startup (SWA-04)
+    const defaultRoom = `device-${edgeMeshClient.deviceId || 'default'}`;
+    edgeMeshClient.joinRoom(defaultRoom).catch(() => {
+      // Mesh room not critical — fallback silently
+    });
+
+    return () => {
+      edgeMeshClient.events.removeEventListener('paired', handlePaired);
+      edgeMeshClient.events.removeEventListener('unpaired', handleUnpaired);
+    };
   }, []);
 
   const handleLaunchTask = (task: CodingTask) => {
@@ -94,6 +108,10 @@ export function App() {
 
           {activeTab === 'memory' && (
             <MemorySyncPanel />
+          )}
+
+          {activeTab === 'mesh' && (
+            <PairingView onClose={() => setActiveTab('projects')} />
           )}
         </div>
       </main>
