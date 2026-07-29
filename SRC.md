@@ -223,6 +223,7 @@ npx lhci collect
 - **Task List:** [.gitcore/planning/tasks.json](file:///home/belal/proyectosSWAL/swal-agent-runner/.gitcore/planning/tasks.json)
 - **Agent Instructions:** [AGENTS.md](file:///home/belal/proyectosSWAL/swal-agent-runner/AGENTS.md)
 - **SRS Specifications:** [docs/SRS/index.md](file:///home/belal/proyectosSWAL/swal-agent-runner/docs/SRS/index.md)
+- **Deployment Guide:** [docs/deployment.md](docs/deployment.md)
 
 ---
 *SWAL GitCore Protocol v3.9.0*
