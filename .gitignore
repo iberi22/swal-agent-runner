@@ -28,6 +28,9 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Stryker mutation reports
+reports/
+
 # Xavier
 xavier_memory.db
 xavier_memory.db-shm

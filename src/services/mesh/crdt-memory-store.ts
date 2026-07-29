@@ -62,7 +62,7 @@ export class CrdtMemoryStore {
   }
 
   /** Almacenar una memoria de trabajo. */
-  add(memory: Omit<WorkingMemory, 'id' | 'timestamp' | 'contentHash'>): WorkingMemory {
+  add(memory: Omit<WorkingMemory, 'id' | 'timestamp' | 'contentHash' | 'ttl'> & { ttl?: number }): WorkingMemory {
     // Evitar duplicados por contenido
     const ch = hashContent(memory.content);
     const existing = this.findByHash(ch);

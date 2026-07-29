@@ -1,0 +1,44 @@
+import { test, expect } from '@playwright/test';
+
+test.describe('Accessibility Audit — axe-core', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('app shell has no critical a11y violations', async ({ page }) => {
+    const { violations } = await injectAxeAndRun(page);
+    const critical = violations.filter((v: any) => v.impact === 'critical' || v.impact === 'serious');
+    expect(critical).toHaveLength(0);
+  });
+
+  test('mesh tab has no critical a11y violations', async ({ page }) => {
+    await page.click('[data-tab="mesh"]');
+    await page.waitForTimeout(500);
+    const { violations } = await injectAxeAndRun(page);
+    const critical = violations.filter((v: any) => v.impact === 'critical' || v.impact === 'serious');
+    expect(critical).toHaveLength(0);
+  });
+
+  test('new task tab has no critical a11y violations', async ({ page }) => {
+    await page.click('[data-tab="new-task"]');
+    await page.waitForTimeout(500);
+    const { violations } = await injectAxeAndRun(page);
+    const critical = violations.filter((v: any) => v.impact === 'critical' || v.impact === 'serious');
+    expect(critical).toHaveLength(0);
+  });
+
+  test('memory tab has no critical a11y violations', async ({ page }) => {
+    await page.click('[data-tab="memory"]');
+    await page.waitForTimeout(500);
+    const { violations } = await injectAxeAndRun(page);
+    const critical = violations.filter((v: any) => v.impact === 'critical' || v.impact === 'serious');
+    expect(critical).toHaveLength(0);
+  });
+});
+
+async function injectAxeAndRun(page: any) {
+  const axeCore = require('@axe-core/playwright');
+  const results = await new axeCore.AxeBuilder({ page }).analyze();
+  return results;
+}
