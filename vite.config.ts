@@ -115,7 +115,23 @@ const securityHeadersProd = {
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/swal-agent-runner/',
+  worker: {
+    format: 'es',
+  },
   plugins: [
+    {
+      name: 'replace-sw-path',
+      enforce: 'pre' as const,
+      transform(code, id) {
+        if (id.endsWith('src/main.tsx')) {
+          return {
+            code: code.replace(/['"]\/sw\.js['"]/g, "import.meta.env.BASE_URL + 'sw.js'"),
+            map: null,
+          };
+        }
+      }
+    },
     react(),
     tailwindcss(),
     cspPlugin(),
@@ -181,6 +197,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '../wasm/gestalt_wasm.js': 'data:text/javascript,export default async function init(){}; export class GestaltEngine{}',
     },
   },
   test: {

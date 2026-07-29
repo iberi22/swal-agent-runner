@@ -29,7 +29,7 @@ on:
 
 env:
   NODE_VERSION: 20
-  PNPM_VERSION: 9
+  PNPM_VERSION: 10
   # ZAP image: use the official zaproxy/zap-stable (owasp/zap2docker-stable was discontinued)
   ZAP_IMAGE: zaproxy/zap-stable
 
