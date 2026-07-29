@@ -1,5 +1,4 @@
 import type { Doc, Map as YMap } from 'yjs';
-import type { MemoryChunk } from '../../types';
 
 /**
  * Lazy yjs module loader.
@@ -20,6 +19,15 @@ const MAP_NAME = 'working:memories';
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 /** Hard cap on the number of working memory entries. */
 const MAX_ENTRIES = 500;
+
+/**
+ * Conflict resolution strategies for concurrent edits of a working memory entry.
+ * - 'lww' (Last-Write-Wins): Use the entry with the higher timestamp (using deterministic tie-breaker if equal).
+ * - 'ours': Keep the local/existing entry.
+ * - 'theirs': Overwrite with the incoming/remote entry.
+ * - 'combine': Smart line-by-line merge to prevent line duplication and keep unique contents.
+ */
+export type MemoryMergeStrategy = 'lww' | 'ours' | 'theirs' | 'combine';
 
 /**
  * Working memory entry stored in the CRDT shared Y.Map.
@@ -63,22 +71,46 @@ function hashContent(content: string): string {
  * - Hard cap of 500 entries
  * - Deduplication by content hash
  * - Category filter: only 'working' memories (others go via HTTP to Xavier)
+ * - Last-write-wins + configurable merge strategies for concurrent edits
  */
 export class CrdtMemoryStore {
   private memories: YMap<WorkingMemory> | null = null;
   private onChange: Set<(event: { type: string; memory: WorkingMemory }) => void> = new Set();
   private _ready: Promise<void>;
+  private conflictStrategy: MemoryMergeStrategy = 'lww';
 
   constructor(doc: Doc) {
     this._ready = getYjs().then(() => {
       this.memories = doc.getMap<WorkingMemory>(MAP_NAME);
 
-      // Clean expired entries on observe
+      // Clean expired entries on observe and handle conflict resolution
       this.memories!.observe((event) => {
+        const isRemote = !event.transaction.local;
+
         for (const [key, change] of event.keys) {
           if (change.action === 'add' || change.action === 'update') {
             const mem = this.memories!.get(key);
             if (mem) {
+              if (change.action === 'update' && change.oldValue && isRemote) {
+                const oldValue = change.oldValue as WorkingMemory;
+
+                // For non-commutative strategies like 'ours'/'theirs', avoid automatic remote sync overrides
+                // because ours/theirs can cause continuous update loops between nodes.
+                // We only do automatic remote conflict resolution for 'lww' and 'combine'.
+                const strategy = this.conflictStrategy;
+                if (strategy === 'lww' || strategy === 'combine') {
+                  const resolved = this.resolveConflict(oldValue, mem, strategy);
+
+                  if (resolved.contentHash !== mem.contentHash || resolved.timestamp !== mem.timestamp) {
+                    // Re-apply resolved entry in next tick to avoid transaction loop
+                    Promise.resolve().then(() => {
+                      if (this.memories) {
+                        this.memories.set(key, resolved);
+                      }
+                    });
+                  }
+                }
+              }
               this.emit({ type: 'memory:added', memory: mem });
             }
           } else if (change.action === 'delete') {
@@ -87,6 +119,20 @@ export class CrdtMemoryStore {
         }
       });
     });
+  }
+
+  /**
+   * Set the default conflict resolution strategy.
+   */
+  setConflictStrategy(strategy: MemoryMergeStrategy): void {
+    this.conflictStrategy = strategy;
+  }
+
+  /**
+   * Get the current conflict resolution strategy.
+   */
+  getConflictStrategy(): MemoryMergeStrategy {
+    return this.conflictStrategy;
   }
 
   /**
@@ -248,6 +294,127 @@ export class CrdtMemoryStore {
       if (!this.isExpired(mem)) result.push(mem);
     }
     return result.sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  /**
+   * Resolves a conflict between two versions of a working memory entry.
+   *
+   * @param ours - Local/existing entry
+   * @param theirs - Incoming/remote entry
+   * @param strategy - Strategy to use ('lww', 'ours', 'theirs', or 'combine')
+   * @returns The resolved entry
+   */
+  resolveConflict(
+    ours: WorkingMemory,
+    theirs: WorkingMemory,
+    strategy: MemoryMergeStrategy = this.conflictStrategy
+  ): WorkingMemory {
+    switch (strategy) {
+      case 'ours':
+        return ours;
+      case 'theirs':
+        return theirs;
+      case 'combine': {
+        if (ours.content === theirs.content) {
+          return theirs.timestamp >= ours.timestamp ? theirs : ours;
+        }
+        const oursLines = ours.content.split('\n').map((l) => l.trim()).filter(Boolean);
+        const theirsLines = theirs.content.split('\n').map((l) => l.trim()).filter(Boolean);
+        const uniqueLines = Array.from(new Set([...oursLines, ...theirsLines]));
+        const combinedContent = uniqueLines.join('\n');
+
+        if (combinedContent === ours.content) {
+          return ours;
+        }
+        if (combinedContent === theirs.content) {
+          return theirs;
+        }
+
+        const newHash = hashContent(combinedContent);
+        const combinedSources = Array.from(new Set([
+          ...ours.source.split('+'),
+          ...theirs.source.split('+')
+        ])).filter(Boolean).join('+');
+
+        return {
+          id: ours.id,
+          projectId: ours.projectId || theirs.projectId,
+          content: combinedContent,
+          contentHash: newHash,
+          source: combinedSources,
+          timestamp: Math.max(ours.timestamp, theirs.timestamp),
+          ttl: Math.max(ours.ttl, theirs.ttl),
+        };
+      }
+      case 'lww':
+      default: {
+        if (theirs.timestamp > ours.timestamp) {
+          return theirs;
+        } else if (ours.timestamp > theirs.timestamp) {
+          return ours;
+        } else {
+          // Deterministic tie-breaker: higher lexicographical contentHash or source
+          return theirs.contentHash >= ours.contentHash ? theirs : ours;
+        }
+      }
+    }
+  }
+
+  /**
+   * Merges an incoming working memory entry with any existing entry under the same ID.
+   *
+   * @param entry - The working memory entry to merge
+   * @param strategy - Optional strategy to override the default conflict strategy
+   * @returns The resolved WorkingMemory entry
+   */
+  async merge(
+    entry: WorkingMemory,
+    strategy: MemoryMergeStrategy = this.conflictStrategy
+  ): Promise<WorkingMemory> {
+    const memories = await this.ensure();
+    const existing = memories.get(entry.id);
+
+    if (!existing) {
+      memories.set(entry.id, entry);
+      return entry;
+    }
+
+    const resolved = this.resolveConflict(existing, entry, strategy);
+    memories.set(resolved.id, resolved);
+    return resolved;
+  }
+
+  /**
+   * Update an existing working memory entry by ID.
+   *
+   * @param id - Entry identifier to update
+   * @param updates - Fields to update (cannot update id or contentHash directly)
+   * @param strategy - Optional conflict resolution strategy
+   * @returns The updated/resolved WorkingMemory entry, or undefined if not found
+   */
+  async update(
+    id: string,
+    updates: Partial<Omit<WorkingMemory, 'id' | 'contentHash'>>,
+    strategy: MemoryMergeStrategy = this.conflictStrategy
+  ): Promise<WorkingMemory | undefined> {
+    const memories = await this.ensure();
+    const existing = memories.get(id);
+    if (!existing) return undefined;
+
+    const updatedEntry: WorkingMemory = {
+      ...existing,
+      ...updates,
+      id,
+      timestamp: updates.timestamp || Date.now(),
+    };
+
+    if (updates.content !== undefined) {
+      updatedEntry.contentHash = hashContent(updates.content);
+    }
+
+    const resolved = this.resolveConflict(existing, updatedEntry, strategy);
+    memories.set(id, resolved);
+    return resolved;
   }
 
   // ── Helpers ──
