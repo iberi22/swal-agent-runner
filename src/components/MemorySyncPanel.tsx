@@ -95,7 +95,8 @@ export const MemorySyncPanel: React.FC = () => {
     if (res.error) {
       setSyncResult(`Sync Error: ${res.error}`);
     } else {
-      setSyncResult(`Synced ${res.syncedCount} memory chunks to PC master node successfully!`);
+      const pulledMsg = res.pulledCount !== undefined ? ` and pulled ${res.pulledCount} chunks` : '';
+      setSyncResult(`Synced ${res.syncedCount} memory chunks to PC master node${pulledMsg} successfully!`);
       loadData();
     }
   };

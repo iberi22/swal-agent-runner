@@ -74,7 +74,20 @@ export class XavierMemoryNode {
   public static async getUnsyncedChunks(): Promise<MemoryChunk[]> {
     const db = await this.dbPromise;
     const all = await db.getAll('chunks');
-    return all.filter((c) => !c.syncedToMaster);
+    return all.filter((c) => !c.syncedToMaster && c.category !== 'working');
+  }
+
+  public static async storeRemoteChunks(chunks: MemoryChunk[]): Promise<void> {
+    const db = await this.dbPromise;
+    const tx = db.transaction('chunks', 'readwrite');
+    for (const chunk of chunks) {
+      const remoteChunk: MemoryChunk = {
+        ...chunk,
+        syncedToMaster: true,
+      };
+      await tx.store.put(remoteChunk);
+    }
+    await tx.done;
   }
 
   public static async markChunksSynced(chunkIds: string[]): Promise<void> {
