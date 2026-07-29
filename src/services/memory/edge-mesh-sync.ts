@@ -64,39 +64,90 @@ export class EdgeMeshSyncService {
     return status;
   }
 
-  public static async performRealtimeSync(): Promise<{ syncedCount: number; error?: string }> {
+  public static async performRealtimeSync(): Promise<{ syncedCount: number; pulledCount?: number; error?: string }> {
     const status = await this.checkPairConnection();
     if (!status.paired) {
       return { syncedCount: 0, error: 'Target PC Xavier node is offline or unreachable.' };
     }
 
     const unsynced = await XavierMemoryNode.getUnsyncedChunks();
-    if (unsynced.length === 0) {
-      return { syncedCount: 0 };
+    let syncedCount = 0;
+
+    // 1. Push local unsynced chunks (POST) if any
+    if (unsynced.length > 0) {
+      try {
+        const res = await fetch(`${status.endpoint}/api/v1/memory/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nodeId: 'swal-agent-runner-edge',
+            chunks: unsynced,
+          }),
+        });
+
+        if (res.ok) {
+          const chunkIds = unsynced.map(c => c.id);
+          await XavierMemoryNode.markChunksSynced(chunkIds);
+          syncedCount = chunkIds.length;
+        } else {
+          const text = await res.text();
+          return { syncedCount: 0, error: `Sync API POST returned error ${res.status}: ${text}` };
+        }
+      } catch (err: any) {
+        return { syncedCount: 0, error: `Sync network error (POST): ${err.message || err}` };
+      }
     }
 
+    // 2. Pull remote chunks (GET)
+    let pulledCount = 0;
     try {
-      const res = await fetch(`${status.endpoint}/api/v1/memory/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nodeId: 'swal-agent-runner-edge',
-          chunks: unsynced,
-        }),
+      const res = await fetch(`${status.endpoint}/api/v1/memory/sync?nodeId=swal-agent-runner-edge`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
       });
 
       if (res.ok) {
-        const chunkIds = unsynced.map(c => c.id);
-        await XavierMemoryNode.markChunksSynced(chunkIds);
-        await this.checkPairConnection();
-        return { syncedCount: chunkIds.length };
+        const resData = await res.json();
+        let remoteChunks: any[] = [];
+        if (Array.isArray(resData)) {
+          remoteChunks = resData;
+        } else if (resData && Array.isArray(resData.chunks)) {
+          remoteChunks = resData.chunks;
+        }
+
+        if (remoteChunks.length > 0) {
+          await XavierMemoryNode.storeRemoteChunks(remoteChunks);
+          pulledCount = remoteChunks.length;
+        }
       } else {
-        const text = await res.text();
-        return { syncedCount: 0, error: `Sync API returned error ${res.status}: ${text}` };
+        // Fallback to /api/v1/memory/pull
+        const pullRes = await fetch(`${status.endpoint}/api/v1/memory/pull?nodeId=swal-agent-runner-edge`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+        });
+        if (pullRes.ok) {
+          const resData = await pullRes.json();
+          let remoteChunks: any[] = [];
+          if (Array.isArray(resData)) {
+            remoteChunks = resData;
+          } else if (resData && Array.isArray(resData.chunks)) {
+            remoteChunks = resData.chunks;
+          }
+
+          if (remoteChunks.length > 0) {
+            await XavierMemoryNode.storeRemoteChunks(remoteChunks);
+            pulledCount = remoteChunks.length;
+          }
+        } else {
+          console.warn(`Could not pull chunks from master: ${res.status}`);
+        }
       }
     } catch (err: any) {
-      return { syncedCount: 0, error: `Sync network error: ${err.message || err}` };
+      console.warn(`Pull network error: ${err.message || err}`);
     }
+
+    await this.checkPairConnection();
+    return { syncedCount, pulledCount };
   }
 
   public static startAutoSyncLoop(intervalMs = 30000): void {

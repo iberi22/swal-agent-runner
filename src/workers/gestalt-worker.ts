@@ -72,13 +72,13 @@ interface EventStream {
 // ── Mock GestaltEngine (WASM not yet compiled) ────────────────────────
 // Mirrors the wasm-bindgen exports from gestalt-wasm/src/lib.rs
 
-interface GestaltEngineLike {
+export interface GestaltEngineLike {
   executeRunSpec(spec: RunSpec): RunReport;
   subscribeEvents(): string[];
   getStatus(): { initialized: boolean; wasmLoaded: boolean; engineType: string };
 }
 
-class MockGestaltEngine implements GestaltEngineLike {
+export class MockGestaltEngine implements GestaltEngineLike {
   private callLog: string[] = [];
   private started = false;
 
@@ -130,16 +130,52 @@ class MockGestaltEngine implements GestaltEngineLike {
   }
 }
 
+export class WasmGestaltEngineProxy implements GestaltEngineLike {
+  private inner: any;
+
+  constructor(inner: any) {
+    this.inner = inner;
+  }
+
+  executeRunSpec(spec: RunSpec): RunReport {
+    console.log('[GestaltWorker] Calling real WASM executeRunSpec');
+    const result = this.inner.executeRunSpec(spec);
+    return result as RunReport;
+  }
+
+  subscribeEvents(): string[] {
+    console.log('[GestaltWorker] Calling real WASM subscribeEvents');
+    const events: string[] = [];
+    const stream = this.inner.subscribeEvents();
+    if (stream && typeof stream.next === 'function') {
+      let event = stream.next();
+      while (event !== null && event !== undefined) {
+        events.push(event);
+        event = stream.next();
+      }
+    }
+    return events;
+  }
+
+  getStatus() {
+    return {
+      initialized: true,
+      wasmLoaded: true,
+      engineType: 'wasm',
+    };
+  }
+}
+
 // ── Worker State ────────────────────────────────────────────────────
 
-let engine: MockGestaltEngine | null = null;
-let engineInitialized = false;
-let engineError: string | null = null;
-let pendingOperations: Array<() => void> = [];
+export let engine: GestaltEngineLike | null = null;
+export let engineInitialized = false;
+export let engineError: string | null = null;
+export let pendingOperations: Array<() => void> = [];
 
 // ── WASM Loader ─────────────────────────────────────────────────────
 
-async function tryLoadWasm(): Promise<boolean> {
+export async function tryLoadWasm(): Promise<boolean> {
   try {
     // Attempt to dynamically import the compiled WASM module.
     // This will fail with a module-not-found error until gestalt-wasm is
@@ -155,14 +191,10 @@ async function tryLoadWasm(): Promise<boolean> {
     await wasmModule.default(); // init() the WASM module
 
     const engineInstance = new wasmModule.GestaltEngine();
-    // We cannot use the WASM engine directly yet because it would require
-    // a full wasm-bindgen type layer on the JS side. For now we keep the mock,
-    // but upgrade its behavior to use the real engine underneath.
     console.log('[GestaltWorker] WASM module loaded successfully');
 
-    // TODO(SWA-02): Replace MockGestaltEngine with WasmGestaltEngine wrapper
-    // once the wasm-bindgen types are properly compiled.
-    // const wasmEngine = new WasmGestaltEngineProxy(engineInstance);
+    // Replace MockGestaltEngine with the real WASM engine proxy!
+    engine = new WasmGestaltEngineProxy(engineInstance);
 
     return true;
   } catch (err) {
