@@ -6,7 +6,7 @@ describe('CrdtEventBus', () => {
     const { CrdtEventBus } = await import('../crdt-event-bus');
     const doc = new Y.Doc();
     const bus = new CrdtEventBus(doc);
-    expect(bus.length).toBe(0);
+    expect(await bus.getLength()).toBe(0);
   });
 
   it('should publish and receive events via subscribe', async () => {
@@ -17,8 +17,8 @@ describe('CrdtEventBus', () => {
     const received: any[] = [];
     bus.subscribe((event) => received.push(event));
 
-    bus.publish({ type: 'run:started', source: 'test', payload: { taskId: 'abc' } });
-    bus.publish({ type: 'step:progress', source: 'test', payload: { step: 1 } });
+    await bus.publish({ type: 'run:started', source: 'test', payload: { taskId: 'abc' } });
+    await bus.publish({ type: 'step:progress', source: 'test', payload: { step: 1 } });
 
     // Wait for Yjs observe to fire
     await new Promise((r) => setTimeout(r, 20));
@@ -38,7 +38,7 @@ describe('CrdtEventBus', () => {
     const unsub = bus.subscribe((event) => received.push(event));
     unsub();
 
-    bus.publish({ type: 'run:started', source: 'test', payload: {} });
+    await bus.publish({ type: 'run:started', source: 'test', payload: {} });
     await new Promise((r) => setTimeout(r, 10));
 
     expect(received.length).toBe(0);
@@ -49,13 +49,13 @@ describe('CrdtEventBus', () => {
     const doc = new Y.Doc();
     const bus = new CrdtEventBus(doc, 100);
 
-    bus.publish({ type: 'event-a', source: 'test', payload: { n: 1 } });
-    bus.publish({ type: 'event-b', source: 'test', payload: { n: 2 } });
-    bus.publish({ type: 'event-c', source: 'test', payload: { n: 3 } });
+    await bus.publish({ type: 'event-a', source: 'test', payload: { n: 1 } });
+    await bus.publish({ type: 'event-b', source: 'test', payload: { n: 2 } });
+    await bus.publish({ type: 'event-c', source: 'test', payload: { n: 3 } });
 
     await new Promise((r) => setTimeout(r, 10));
 
-    const history = bus.getHistory(10);
+    const history = await bus.getHistory(10);
     expect(history.length).toBe(3);
     expect(history[0].type).toBe('event-a');
     expect(history[2].type).toBe('event-c');
@@ -66,16 +66,16 @@ describe('CrdtEventBus', () => {
     const doc = new Y.Doc();
     const bus = new CrdtEventBus(doc, 100);
 
-    bus.publish({ type: 'run:started', source: 'test', payload: {} });
-    bus.publish({ type: 'step:progress', source: 'test', payload: { n: 1 } });
-    bus.publish({ type: 'step:progress', source: 'test', payload: { n: 2 } });
-    bus.publish({ type: 'run:completed', source: 'test', payload: {} });
+    await bus.publish({ type: 'run:started', source: 'test', payload: {} });
+    await bus.publish({ type: 'step:progress', source: 'test', payload: { n: 1 } });
+    await bus.publish({ type: 'step:progress', source: 'test', payload: { n: 2 } });
+    await bus.publish({ type: 'run:completed', source: 'test', payload: {} });
 
     await new Promise((r) => setTimeout(r, 10));
 
-    const progressEvents = bus.getByType('step:progress', 5);
+    const progressEvents = await bus.getByType('step:progress', 5);
     expect(progressEvents.length).toBe(2);
-    expect(progressEvents[0].payload.n).toBe(2); // most recent first
+    expect(progressEvents[0].payload.n).toBe(2);
     expect(progressEvents[1].payload.n).toBe(1);
   });
 
@@ -85,12 +85,12 @@ describe('CrdtEventBus', () => {
     const bus = new CrdtEventBus(doc, 5);
 
     for (let i = 0; i < 10; i++) {
-      bus.publish({ type: 'test', source: 'test', payload: { i } });
+      await bus.publish({ type: 'test', source: 'test', payload: { i } });
     }
 
     await new Promise((r) => setTimeout(r, 10));
 
-    expect(bus.length).toBeLessThanOrEqual(5);
+    expect(await bus.getLength()).toBeLessThanOrEqual(5);
   });
 
   it('should clear all events', async () => {
@@ -98,14 +98,14 @@ describe('CrdtEventBus', () => {
     const doc = new Y.Doc();
     const bus = new CrdtEventBus(doc);
 
-    bus.publish({ type: 'test', source: 'test', payload: {} });
-    bus.publish({ type: 'test', source: 'test', payload: {} });
+    await bus.publish({ type: 'test', source: 'test', payload: {} });
+    await bus.publish({ type: 'test', source: 'test', payload: {} });
     await new Promise((r) => setTimeout(r, 10));
 
-    expect(bus.length).toBe(2);
+    expect(await bus.getLength()).toBe(2);
 
-    bus.clear();
-    expect(bus.length).toBe(0);
+    await bus.clear();
+    expect(await bus.getLength()).toBe(0);
   });
 
   it('should handle handler errors gracefully', async () => {
@@ -116,9 +116,7 @@ describe('CrdtEventBus', () => {
     bus.subscribe(() => { throw new Error('handler error'); });
     bus.subscribe(() => { /* this one should still run */ });
 
-    expect(() => {
-      bus.publish({ type: 'test', source: 'test', payload: {} });
-    }).not.toThrow();
+    await expect(bus.publish({ type: 'test', source: 'test', payload: {} })).resolves.not.toThrow();
 
     await new Promise((r) => setTimeout(r, 10));
   });

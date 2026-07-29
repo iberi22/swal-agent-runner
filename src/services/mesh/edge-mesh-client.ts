@@ -1,26 +1,36 @@
-import { YjsAdapter } from './yjs-adapter';
+import type { YjsAdapter } from './yjs-adapter';
 import type { ITransport } from './transport';
 import { XavierPairStatus } from '../../types';
-import { CrdtEventBus } from './crdt-event-bus';
-import { CrdtMemoryStore } from './crdt-memory-store';
+import type { CrdtEventBus } from './crdt-event-bus';
+import type { CrdtMemoryStore } from './crdt-memory-store';
 import { deviceIdentity } from './device-identity';
-import { initCrdtSync, type CrdtSyncInstance } from './crdt-sync';
+import type { CrdtSyncInstance } from './crdt-sync';
+import type { Doc } from 'yjs';
 
 /**
- * EdgeMeshClient — Cliente P2P para la PWA.
+ * EdgeMeshClient — P2P mesh client for the SWAL Agent Runner PWA.
  *
- * Modo dual:
- * 1. Legacy: PeerJS 1:1 pairing (via setTransport)
- * 2. Mesh: y-webrtc multi-peer room (via joinRoom)
+ * Dual-mode operation:
+ * 1. **Legacy**: PeerJS 1:1 pairing (via setTransport)
+ * 2. **Mesh**: y-webrtc multi-peer room (via joinRoom)
  *
- * Uso:
- *   import { edgeMeshClient } from './services/mesh';
- *   edgeMeshClient.subscribe((status) => console.log(status));
- *   await edgeMeshClient.joinRoom('swal-agent-runner/mi-proyecto');
+ * Features:
+ * - Lazy-loaded YjsAdapter — yjs is imported on first mesh access
+ * - CRDT-backed event bus and working memory store
+ * - Persistent device identity via IndexedDB
+ * - Pairing status subscriptions and DOM event dispatch
+ *
+ * Usage:
+ * ```ts
+ * import { edgeMeshClient } from './services/mesh';
+ * edgeMeshClient.subscribe((status) => console.log(status));
+ * await edgeMeshClient.joinRoom('swal-agent-runner/my-project');
+ * ```
  */
 export class EdgeMeshClient {
   private legacyTransport: ITransport | null = null;
-  private _yjs: YjsAdapter;
+  private _yjs: YjsAdapter | null = null;
+  private _yjsPromise: Promise<YjsAdapter> | null = null;
   private pairStatusListeners: ((status: XavierPairStatus) => void)[] = [];
   private _paired = false;
   private _peerEndpoint = '';
@@ -31,12 +41,27 @@ export class EdgeMeshClient {
   private _meshRoom: string = '';
   private _meshPeers: Set<string> = new Set();
 
-  /** EventTarget para eventos del mesh (paired, unpaired, error, mesh:peer-joined, mesh:peer-left). */
+  /**
+   * DOM EventTarget for mesh lifecycle events (paired, unpaired, error,
+   * mesh:peer-joined, mesh:peer-left).
+   */
   readonly events: EventTarget = new EventTarget();
 
   constructor() {
-    this._yjs = new YjsAdapter();
     this._initDeviceId();
+  }
+
+  /**
+   * Lazily initialize the YjsAdapter (loads yjs on first access).
+   */
+  private async _ensureYjs(): Promise<YjsAdapter> {
+    if (this._yjs) return this._yjs;
+    if (!this._yjsPromise) {
+      const { YjsAdapter } = await import('./yjs-adapter');
+      this._yjsPromise = YjsAdapter.create();
+    }
+    this._yjs = await this._yjsPromise;
+    return this._yjs;
   }
 
   private async _initDeviceId(): Promise<void> {
@@ -47,35 +72,84 @@ export class EdgeMeshClient {
     }
   }
 
-  /** ID persistente del dispositivo. */
+  /**
+   * Persistent device identifier for this client.
+   */
   get deviceId(): string {
     return this._deviceId;
   }
 
-  /** Obtener el adaptador Yjs para acceso directo al CRDT compartido. */
+  /**
+   * YjsAdapter for direct CRDT shared-doc access (lazy-loaded).
+   *
+   * Returns synchronously if already loaded, otherwise starts loading
+   * in the background. Use {@link getDoc} for a guaranteed async result.
+   */
   get yjs(): YjsAdapter {
-    return this._yjs;
+    if (!this._yjs) {
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      this._ensureYjs();
+    }
+    return this._yjs!;
   }
 
-  /** Obtener o crear el CrdtEventBus sobre el documento Yjs compartido. */
+  /**
+   * Get the shared Y.Doc instance, lazy-loading yjs if needed.
+   *
+   * @returns A promise resolving to the Yjs Doc
+   */
+  async getDoc(): Promise<Doc> {
+    const yjs = await this._ensureYjs();
+    return yjs.doc;
+  }
+
+  /**
+   * CRDT-backed event bus for publishing/receiving mesh events.
+   *
+   * Lazily creates the CrdtEventBus over the shared Yjs document.
+   *
+   * @throws {Error} If YjsAdapter has not been initialized yet
+   */
   get crdtEventBus(): CrdtEventBus {
     if (!this._eventBus) {
-      this._eventBus = new CrdtEventBus(this._yjs.doc);
+      const { CrdtEventBus } = require('./crdt-event-bus');
+      if (this._yjs && this._yjs.doc) {
+        this._eventBus = new CrdtEventBus(this._yjs.doc);
+      }
+    }
+    if (!this._eventBus) {
+      throw new Error('CrdtEventBus not available — ensure YjsAdapter is initialized');
     }
     return this._eventBus;
   }
 
-  /** Obtener o crear el CrdtMemoryStore para P2P working memory sync. */
+  /**
+   * CRDT-backed working memory store for P2P memory sync.
+   *
+   * Lazily creates the CrdtMemoryStore over the shared Yjs document.
+   *
+   * @throws {Error} If YjsAdapter has not been initialized yet
+   */
   get crdtMemoryStore(): CrdtMemoryStore {
     if (!this._crdtMemoryStore) {
-      this._crdtMemoryStore = new CrdtMemoryStore(this._yjs.doc);
+      const { CrdtMemoryStore } = require('./crdt-memory-store');
+      if (this._yjs && this._yjs.doc) {
+        this._crdtMemoryStore = new CrdtMemoryStore(this._yjs.doc);
+      }
+    }
+    if (!this._crdtMemoryStore) {
+      throw new Error('CrdtMemoryStore not available — ensure YjsAdapter is initialized');
     }
     return this._crdtMemoryStore;
   }
 
   // ── Legacy 1:1 Pairing (PeerJS) ──
 
-  /** Configurar el transporte P2P legacy (PeerJSTransport o MemoryTransport). */
+  /**
+   * Set up the legacy P2P transport layer (PeerJSTransport or MemoryTransport).
+   *
+   * @param transport - The transport instance to use for 1:1 pairing
+   */
   setTransport(transport: ITransport): void {
     if (this.legacyTransport) {
       this.legacyTransport.off('conectado', this.onPeerConnected as never);
@@ -87,14 +161,25 @@ export class EdgeMeshClient {
     this._peerEndpoint = transport.nodoId;
   }
 
-  /** Obtener el transporte legacy actual. */
+  /**
+   * Get the current legacy transport layer.
+   *
+   * @returns The transport instance, or null if not configured
+   */
   getTransport(): ITransport | null {
     return this.legacyTransport;
   }
 
   // ── Multi-Peer Mesh (y-webrtc Room) ──
 
-  /** Unirse a un room y-webrtc multi-peer. */
+  /**
+   * Join a y-webrtc multi-peer mesh room.
+   *
+   * Leaves any existing room first. Initializes CRDT sync with WebRTC
+   * transport and IndexedDB persistence.
+   *
+   * @param roomName - Room name (will be prefixed with "swal-agent-runner/")
+   */
   async joinRoom(roomName: string): Promise<void> {
     if (this._crdtSync) {
       await this.leaveRoom();
@@ -104,7 +189,9 @@ export class EdgeMeshClient {
     const fullRoomName = `swal-agent-runner/${roomName}`;
 
     try {
-      this._crdtSync = await initCrdtSync(this._yjs.doc, fullRoomName, {
+      const doc = await this.getDoc();
+      const { initCrdtSync } = await import('./crdt-sync');
+      this._crdtSync = await initCrdtSync(doc, fullRoomName, {
         maxConnections: 10,
       });
 
@@ -122,7 +209,11 @@ export class EdgeMeshClient {
     }
   }
 
-  /** Salir del room multi-peer actual. */
+  /**
+   * Leave the current multi-peer mesh room.
+   *
+   * Destroys the CRDT sync instance and clears peer tracking state.
+   */
   async leaveRoom(): Promise<void> {
     if (this._crdtSync) {
       this._crdtSync.destroy();
@@ -137,24 +228,34 @@ export class EdgeMeshClient {
     this.events.dispatchEvent(new CustomEvent('mesh:room-left'));
   }
 
-  /** Nombre del room mesh actual (vacío si no está en un room). */
+  /**
+   * Name of the current mesh room (empty if not in a room).
+   */
   get meshRoom(): string {
     return this._meshRoom;
   }
 
-  /** Lista de peers conectados en el mesh (además de este nodo). */
+  /**
+   * List of peers currently connected in the mesh (excluding this node).
+   */
   get meshPeers(): string[] {
     return Array.from(this._meshPeers);
   }
 
-  /** ¿Está conectado a algún peer (legacy o mesh)? */
+  /**
+   * Whether the client is connected to any peer (legacy or mesh).
+   */
   get paired(): boolean {
     return this._paired;
   }
 
-  // ── Estado ──
+  // ── State ──
 
-  /** Obtener estado de pairing actualizado. */
+  /**
+   * Get the current pairing status snapshot.
+   *
+   * @returns XavierPairStatus with connection state and endpoint info
+   */
   getPairStatus(): XavierPairStatus {
     return {
       paired: this._paired,
@@ -165,17 +266,28 @@ export class EdgeMeshClient {
     };
   }
 
-  /** Suscribirse a cambios de estado de pairing. */
+  /**
+   * Subscribe to pairing status changes.
+   *
+   * Immediately invokes the listener with the current status.
+   *
+   * @param listener - Callback receiving XavierPairStatus updates
+   * @returns Unsubscribe function to remove the listener
+   */
   subscribe(listener: (status: XavierPairStatus) => void): () => void {
     this.pairStatusListeners.push(listener);
-    // Notificar inmediatamente con estado actual
     listener(this.getPairStatus());
     return () => {
       this.pairStatusListeners = this.pairStatusListeners.filter(l => l !== listener);
     };
   }
 
-  /** Cerrar conexión y limpiar recursos. */
+  /**
+   * Close all connections and release resources.
+   *
+   * Leaves the mesh room, tears down legacy transport, destroys the
+   * Yjs adapter, and notifies listeners of the disconnected state.
+   */
   async destroy(): Promise<void> {
     await this.leaveRoom();
 
@@ -183,13 +295,16 @@ export class EdgeMeshClient {
       await this.legacyTransport.cerrar();
       this.legacyTransport = null;
     }
-    this._yjs.destroy();
+    if (this._yjs) {
+      this._yjs.destroy();
+      this._yjs = null;
+    }
     this._paired = false;
     this._peerEndpoint = '';
     this.notify();
   }
 
-  // ── Handlers internos ──
+  // ── Internal Handlers ──
 
   private onPeerConnected = (ev: Event) => {
     const detail = (ev as CustomEvent).detail as { nodoId: string };
@@ -215,5 +330,5 @@ export class EdgeMeshClient {
   }
 }
 
-/** Singleton global de EdgeMeshClient para toda la app. */
+/** Global singleton instance of EdgeMeshClient for the entire app. */
 export const edgeMeshClient = new EdgeMeshClient();

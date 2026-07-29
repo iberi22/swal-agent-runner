@@ -145,8 +145,13 @@ async function tryLoadWasm(): Promise<boolean> {
     // This will fail with a module-not-found error until gestalt-wasm is
     // compiled with wasm-pack and the output is placed at
     //   swal-agent-runner/src/wasm/gestalt_wasm.js
+    // Use computed dynamic import string to prevent Vite bundler from creating
+    // a separate chunk for the WASM module within the worker (worker IIFE format
+    // doesn't support code-splitting). The import is expected to fail until WASM
+    // is compiled — the worker falls back to MockGestaltEngine.
+    const wasmPath = '../wasm/gestalt_wasm.js';
     // @ts-ignore — expected until SWA-02 (wasm-pack build)
-    const wasmModule = await import('../wasm/gestalt_wasm.js');
+    const wasmModule = await import(wasmPath);
     await wasmModule.default(); // init() the WASM module
 
     const engineInstance = new wasmModule.GestaltEngine();

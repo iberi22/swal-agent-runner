@@ -5,7 +5,7 @@ import type { MeshEvent } from '../services/mesh/crdt-event-bus';
 /**
  * Hook React que se suscribe al CrdtEventBus.
  * Retorna los eventos en tiempo real y el estado de conexion P2P.
- * 
+ *
  * Uso:
  *   const { events, isPaired, lastEvent } = useCrdtEvents();
  */
@@ -16,21 +16,35 @@ export function useCrdtEvents(options: { maxEvents?: number; filter?: string } =
   const [lastEvent, setLastEvent] = useState<MeshEvent | null>(null);
 
   useEffect(() => {
-    const bus = edgeMeshClient.crdtEventBus;
-    const handler = (event: MeshEvent) => {
-      if (!filter || event.type === filter) {
-        setLastEvent(event);
-        setEvents(prev => [event, ...prev].slice(0, maxEvents));
+    let cancelled = false;
+
+    (async () => {
+      const bus = await edgeMeshClient.crdtEventBus;
+      if (cancelled) return;
+
+      const handler = (event: MeshEvent) => {
+        if (!filter || event.type === filter) {
+          setLastEvent(event);
+          setEvents(prev => [event, ...prev].slice(0, maxEvents));
+        }
+      };
+      const unsub = bus.subscribe(handler);
+
+      // Cargar historial
+      const history = await bus.getHistory(maxEvents);
+      if (!cancelled) {
+        const filtered = filter ? history.filter(e => e.type === filter) : history;
+        setEvents(filtered);
       }
-    };
-    const unsub = bus.subscribe(handler);
-    // Cargar historial
-    const history = bus.getHistory(maxEvents);
-    const filtered = filter ? history.filter(e => e.type === filter) : history;
-    setEvents(filtered);
-    // Pairing status
-    const unsubPair = edgeMeshClient.subscribe(s => setIsPaired(s.paired));
-    return () => { unsub(); unsubPair(); };
+
+      // Pairing status
+      const unsubPair = edgeMeshClient.subscribe(s => setIsPaired(s.paired));
+
+      return () => { unsub(); unsubPair(); };
+    })();
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maxEvents, filter]);
 
   return { events, isPaired, lastEvent };

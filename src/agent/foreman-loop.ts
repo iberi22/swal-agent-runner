@@ -11,6 +11,13 @@ import { edgeMeshClient } from '../services/mesh/edge-mesh-client';
 /**
  * Specification for a single sub-agent within a Foreman wave.
  * Mirrors Gestalt's AgentSpec proto shape.
+ *
+ * @property id - Unique agent identifier
+ * @property task - Description of the coding task to execute
+ * @property targetBranch - Git branch for this agent's changes
+ * @property model - Optional model override for this sub-agent
+ * @property dependencies - Optional list of agent IDs that must complete first
+ * @property providerType - Optional override provider type for this sub-agent
  */
 export interface AgentSpec {
   id: string;
@@ -24,6 +31,16 @@ export interface AgentSpec {
 
 /**
  * Result produced by a single sub-agent execution.
+ *
+ * @property agentId - Unique identifier of the sub-agent
+ * @property task - The original task description
+ * @property success - Whether the agent completed successfully
+ * @property summary - Human-readable summary of the agent's work
+ * @property branchName - Git branch used by this agent
+ * @property commitHash - Optional hash of the final commit
+ * @property changedFiles - List of files modified by the agent
+ * @property error - Optional error message if the agent failed
+ * @property steps - Steps logged by the sub-agent during execution
  */
 export interface AgentResult {
   agentId: string;
@@ -40,6 +57,14 @@ export interface AgentResult {
 
 /**
  * Aggregate result from a Foreman multi-agent wave.
+ *
+ * @property success - Whether all sub-agents completed successfully
+ * @property summary - Human-readable summary of the entire wave
+ * @property agentResults - Individual results from each sub-agent
+ * @property branchName - The target branch after merging
+ * @property commitHash - Optional hash of the final merge commit
+ * @property changedFiles - Union of all files changed by sub-agents
+ * @property mergeConflicts - Optional list of merge conflict descriptions
  */
 export interface ForemanResult {
   success: boolean;
@@ -106,6 +131,11 @@ export class ForemanAgentLoop {
    * If the task is small or decomposition returns a single agent,
    * delegates directly to AgentLoopRunner for backward compatibility.
    * Otherwise runs the full multi-agent wave.
+   *
+   * @param task - The coding task to decompose and execute
+   * @param onTaskUpdate - Callback fired on every state change or step addition
+   * @returns The updated CodingTask with Foreman wave results
+   * @throws {Error} If the wave encounters an unrecoverable error
    */
   public static async runTask(
     task: CodingTask,
@@ -134,9 +164,10 @@ export class ForemanAgentLoop {
       onTaskUpdate({ ...updated });
     };
 
-    const publishEvent = (type: string, payload: Record<string, unknown> = {}) => {
+    const publishEvent = async (type: string, payload: Record<string, unknown> = {}) => {
       try {
-        edgeMeshClient.crdtEventBus.publish({ type, source: 'foreman-loop', payload });
+        const bus = await edgeMeshClient.crdtEventBus;
+        bus.publish({ type, source: 'foreman-loop', payload });
       } catch {
         /* P2P event bus not available */
       }
@@ -242,6 +273,10 @@ export class ForemanAgentLoop {
   /**
    * Single-agent execution — backward compatible alias for AgentLoopRunner.
    * Useful when callers want the Foreman API but don't need multi-agent decomposition.
+   *
+   * @param task - The coding task to execute
+   * @param onTaskUpdate - Callback fired on every state change or step addition
+   * @returns The updated CodingTask with agent results
    */
   public static async runSingleAgent(
     task: CodingTask,
@@ -549,7 +584,7 @@ export class GestaltForeman {
    * @param targetBranch - The base branch to merge into
    * @param specs - Array of AgentSpecs to execute in parallel
    * @param onEvent - Callback for lifecycle events (WsEvent-compatible)
-   * @returns Consolidated ForemanResult
+   * @returns Consolidated ForemanResult with agent results and merge status
    */
   static async runWave(
     projectId: string,
@@ -557,17 +592,17 @@ export class GestaltForeman {
     specs: AgentSpec[],
     onEvent?: (type: string, payload: Record<string, unknown>) => void
   ): Promise<ForemanResult> {
-    const publishEvent = (type: string, payload: Record<string, unknown> = {}) => {
+    const publishEvent = async (type: string, payload: Record<string, unknown> = {}) => {
       // Forward to both CrdtEventBus and optional callback
       try {
-        edgeMeshClient.crdtEventBus.publish({ type, source: 'gestalt-foreman', payload });
+        const bus = await edgeMeshClient.crdtEventBus;
+        bus.publish({ type, source: 'gestalt-foreman', payload });
       } catch {
         /* bus not available */
       }
       if (onEvent) onEvent(type, payload);
     };
 
-    publishEvent('run_started', { projectId, task: specs.map(s => s.task).join('; '), agents: specs.map(s => s.id) });
     publishEvent('state_changed', { runId: projectId, state: 'executing' });
 
     // Create CodingTask stubs for each spec

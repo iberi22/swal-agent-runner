@@ -7,7 +7,7 @@
 #
 # Usage:
 #   ./test/security/dast.sh                          # Full scan (default)
-#   ./test/security/dast.sh --quick                   # Quick spider-only scan
+#   ./test/security/dast.sh --quick                   # Quick baseline scan
 #   ./test/security/dast.sh --target http://...       # Scan a different target
 #   ./test/security/dast.sh --help                    # Show this help
 #
@@ -117,11 +117,34 @@ else
   echo "› Dev server is already running at ${TARGET_URL}"
 fi
 
-# ── Run the ZAP scan ────────────────────────────────────────────────────────
+# ── Resolve reachable target URL for Docker container ──────────────────────
 
-# On Linux the `--add-host host.docker.internal:host-gateway` flag makes
-# `host.docker.internal` resolve to the host, matching Docker Desktop behaviour.
-# On Docker Desktop (macOS/Windows) it's a no-op alias.
+# The ZAP container needs to reach the host's web server. Different platforms
+# have different approaches:
+#   Linux  — use docker0 bridge IP (172.17.0.1), reachable from any container
+#   macOS  — host.docker.internal is auto-resolved by Docker Desktop
+#   Windows — host.docker.internal is auto-resolved by Docker Desktop
+CONTAINER_TARGET="${TARGET_URL}"
+NETWORK_OPTS=""
+DOCKER_BRIDGE_IP="$(ip -4 -o addr show docker0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)"
+
+if [ -n "${DOCKER_BRIDGE_IP}" ]; then
+  # Linux: replace localhost with docker0 bridge IP
+  CONTAINER_TARGET="$(echo "${TARGET_URL}" | sed "s|://localhost:[0-9]*|://${DOCKER_BRIDGE_IP}:${HOST_PORT}|; s|://127\.[0-9.]*:[0-9]*|://${DOCKER_BRIDGE_IP}:${HOST_PORT}|")"
+  echo "  Docker bridge IP: ${DOCKER_BRIDGE_IP}"
+elif [ "$(uname)" = "Darwin" ] || echo "$(uname)" | grep -qi "MINGW\|MSYS\|CYGWIN"; then
+  # Docker Desktop: host.docker.internal is built-in
+  CONTAINER_TARGET="$(echo "${TARGET_URL}" | sed "s|://localhost:[0-9]*|://host.docker.internal:${HOST_PORT}|; s|://127\.[0-9.]*:[0-9]*|://host.docker.internal:${HOST_PORT}|")"
+  echo "  Docker Desktop detected"
+else
+  # Fallback: use host network mode
+  NETWORK_OPTS="--network host"
+  echo "  Using host network mode"
+fi
+echo "  Container reachable target: ${CONTAINER_TARGET}"
+echo ""
+
+# ── Run the ZAP scan ────────────────────────────────────────────────────────
 
 echo "› Starting ZAP ${SCAN_TYPE} scan (this may take several minutes)..."
 echo ""
@@ -134,11 +157,11 @@ case "${SCAN_TYPE}" in
     # Baseline scan — spider (1 min) + passive scan (faster, less thorough)
     # See: https://www.zaproxy.org/docs/docker/baseline-scan/
     docker run --rm \
-      --add-host host.docker.internal:host-gateway \
+      ${NETWORK_OPTS} \
       -v "${REPORT_DIR}:/zap/wrk:rw" \
       "${ZAP_IMAGE}" \
       zap-baseline.py \
-        -t "${TARGET_URL}" \
+        -t "${CONTAINER_TARGET}" \
         -r zap-report.html \
         -I \
         ${ZAP_OPTIONS:-}
@@ -147,11 +170,11 @@ case "${SCAN_TYPE}" in
     # Full active scan — spider + ajax spider + active scan (thorough but slower)
     # See: https://www.zaproxy.org/docs/docker/full-scan/
     docker run --rm \
-      --add-host host.docker.internal:host-gateway \
+      ${NETWORK_OPTS} \
       -v "${REPORT_DIR}:/zap/wrk:rw" \
       "${ZAP_IMAGE}" \
       zap-full-scan.py \
-        -t "${TARGET_URL}" \
+        -t "${CONTAINER_TARGET}" \
         -r zap-report.html \
         -I \
         -a \

@@ -1,5 +1,18 @@
-import * as Y from 'yjs';
+import type { Doc, Map as YMap } from 'yjs';
 import type { MemoryChunk } from '../../types';
+
+/**
+ * Lazy yjs module loader.
+ */
+let _YjsModule: Promise<typeof import('yjs')> | null = null;
+async function getYjs(): Promise<typeof import('yjs')> {
+  if (!_YjsModule) {
+    _YjsModule = import('yjs').then((m) =>
+      (m as any).default && (m as any).default?.Doc ? (m as any).default : m
+    );
+  }
+  return _YjsModule;
+}
 
 /**
  * CrdtMemoryStore — Working memory store sobre Y.Map.
@@ -40,32 +53,47 @@ function hashContent(content: string): string {
 }
 
 export class CrdtMemoryStore {
-  private memories: Y.Map<WorkingMemory>;
+  private memories: YMap<WorkingMemory> | null = null;
   private onChange: Set<(event: { type: string; memory: WorkingMemory }) => void> = new Set();
+  private _ready: Promise<void>;
 
-  constructor(doc: Y.Doc) {
-    this.memories = doc.getMap<WorkingMemory>(MAP_NAME);
+  constructor(doc: Doc) {
+    this._ready = getYjs().then(() => {
+      this.memories = doc.getMap<WorkingMemory>(MAP_NAME);
 
-    // Clean expired entries on observe
-    this.memories.observe((event) => {
-      for (const [key, change] of event.keys) {
-        if (change.action === 'add' || change.action === 'update') {
-          const mem = this.memories.get(key);
-          if (mem) {
-            this.emit({ type: 'memory:added', memory: mem });
+      // Clean expired entries on observe
+      this.memories!.observe((event) => {
+        for (const [key, change] of event.keys) {
+          if (change.action === 'add' || change.action === 'update') {
+            const mem = this.memories!.get(key);
+            if (mem) {
+              this.emit({ type: 'memory:added', memory: mem });
+            }
+          } else if (change.action === 'delete') {
+            this.emit({ type: 'memory:removed', memory: { id: key } as WorkingMemory });
           }
-        } else if (change.action === 'delete') {
-          this.emit({ type: 'memory:removed', memory: { id: key } as WorkingMemory });
         }
-      }
+      });
     });
   }
 
+  /** Wait for yjs module and Y.Map initialization. */
+  async ready(): Promise<void> {
+    await this._ready;
+  }
+
+  /** Ensure memories map is initialized. */
+  private async ensure(): Promise<YMap<WorkingMemory>> {
+    await this._ready;
+    return this.memories!;
+  }
+
   /** Almacenar una memoria de trabajo. */
-  add(memory: Omit<WorkingMemory, 'id' | 'timestamp' | 'contentHash' | 'ttl'> & { ttl?: number }): WorkingMemory {
+  async add(memory: Omit<WorkingMemory, 'id' | 'timestamp' | 'contentHash'>): Promise<WorkingMemory> {
+    const memories = await this.ensure();
     // Evitar duplicados por contenido
     const ch = hashContent(memory.content);
-    const existing = this.findByHash(ch);
+    const existing = this.findByHash(ch, memories);
     if (existing) return existing;
 
     const entry: WorkingMemory = {
@@ -77,24 +105,26 @@ export class CrdtMemoryStore {
     };
 
     // Hard cap: eliminar la más vieja si excede max
-    if (this.memories.size >= MAX_ENTRIES) {
-      const oldest = this.getOldest();
-      if (oldest) this.memories.delete(oldest.id);
+    if (memories.size >= MAX_ENTRIES) {
+      const oldest = this.getOldest(memories);
+      if (oldest) memories.delete(oldest.id);
     }
 
-    this.memories.set(entry.id, entry);
+    memories.set(entry.id, entry);
     return entry;
   }
 
   /** Obtener una memoria por ID. */
-  get(id: string): WorkingMemory | undefined {
-    return this.memories.get(id);
+  async get(id: string): Promise<WorkingMemory | undefined> {
+    const memories = await this.ensure();
+    return memories.get(id);
   }
 
   /** Buscar memorias por projectId. */
-  findByProject(projectId: string, limit = 20): WorkingMemory[] {
+  async findByProject(projectId: string, limit = 20): Promise<WorkingMemory[]> {
+    const memories = await this.ensure();
     const results: WorkingMemory[] = [];
-    for (const [, mem] of this.memories) {
+    for (const [, mem] of memories) {
       if (mem.projectId === projectId && !this.isExpired(mem)) {
         results.push(mem);
         if (results.length >= limit) break;
@@ -104,11 +134,12 @@ export class CrdtMemoryStore {
   }
 
   /** Buscar memorias por contenido (keyword match). */
-  search(query: string, limit = 10): WorkingMemory[] {
+  async search(query: string, limit = 10): Promise<WorkingMemory[]> {
+    const memories = await this.ensure();
     const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
     const scored: { mem: WorkingMemory; score: number }[] = [];
 
-    for (const [, mem] of this.memories) {
+    for (const [, mem] of memories) {
       if (this.isExpired(mem)) continue;
       let score = 0;
       const lower = mem.content.toLowerCase();
@@ -125,17 +156,19 @@ export class CrdtMemoryStore {
   }
 
   /** Eliminar una memoria. */
-  remove(id: string): void {
-    this.memories.delete(id);
+  async remove(id: string): Promise<void> {
+    const memories = await this.ensure();
+    memories.delete(id);
   }
 
   /** Limpiar memorias expiradas. */
-  cleanExpired(): number {
+  async cleanExpired(): Promise<number> {
+    const memories = await this.ensure();
     let cleaned = 0;
     const now = Date.now();
-    for (const [key, mem] of this.memories) {
+    for (const [key, mem] of memories) {
       if (this.isExpired(mem, now)) {
-        this.memories.delete(key);
+        memories.delete(key);
         cleaned++;
       }
     }
@@ -143,8 +176,9 @@ export class CrdtMemoryStore {
   }
 
   /** Número de memorias activas. */
-  get size(): number {
-    return this.memories.size;
+  async getSize(): Promise<number> {
+    const memories = await this.ensure();
+    return memories.size;
   }
 
   /** Suscribirse a cambios. */
@@ -154,9 +188,10 @@ export class CrdtMemoryStore {
   }
 
   /** Exportar todas las memorias activas. */
-  toJSON(): WorkingMemory[] {
+  async toJSON(): Promise<WorkingMemory[]> {
+    const memories = await this.ensure();
     const result: WorkingMemory[] = [];
-    for (const [, mem] of this.memories) {
+    for (const [, mem] of memories) {
       if (!this.isExpired(mem)) result.push(mem);
     }
     return result.sort((a, b) => b.timestamp - a.timestamp);
@@ -168,16 +203,16 @@ export class CrdtMemoryStore {
     return (now - mem.timestamp) > mem.ttl;
   }
 
-  private findByHash(hash: string): WorkingMemory | undefined {
-    for (const [, mem] of this.memories) {
+  private findByHash(hash: string, memories: YMap<WorkingMemory>): WorkingMemory | undefined {
+    for (const [, mem] of memories) {
       if (mem.contentHash === hash) return mem;
     }
     return undefined;
   }
 
-  private getOldest(): WorkingMemory | undefined {
+  private getOldest(memories: YMap<WorkingMemory>): WorkingMemory | undefined {
     let oldest: WorkingMemory | undefined;
-    for (const [, mem] of this.memories) {
+    for (const [, mem] of memories) {
       if (!oldest || mem.timestamp < oldest.timestamp) oldest = mem;
     }
     return oldest;

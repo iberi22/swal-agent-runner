@@ -18,6 +18,15 @@ const STORE_NAME = 'device-identity';
 const DB_NAME = 'swal-device-identity';
 const DB_VERSION = 1;
 
+/**
+ * Device identity information stored in IndexedDB.
+ *
+ * @property deviceId - Unique device identifier (prefix "swal-")
+ * @property name - Human-readable device name
+ * @property deviceType - Detected device category (phone, tablet, pc, etc.)
+ * @property createdAt - Timestamp when the identity was first created
+ * @property lastSeen - Timestamp of the last access
+ */
 export interface DeviceInfo {
   deviceId: string;
   name: string;
@@ -26,6 +35,9 @@ export interface DeviceInfo {
   lastSeen: number;
 }
 
+/**
+ * Detected device type categories.
+ */
 export type DeviceType = 'phone' | 'tablet' | 'pc' | 'web' | 'unknown';
 
 function detectDeviceType(): DeviceType {
@@ -39,6 +51,22 @@ function detectDeviceType(): DeviceType {
   return 'pc';
 }
 
+/**
+ * Persistent device identity manager.
+ *
+ * Stores a unique device identifier in IndexedDB (via idb) that survives
+ * page reloads. Exposed via {@link EdgeMeshClient.deviceId}.
+ *
+ * ID format: `swal-{uuid-v4-suffix}` (e.g. `swal-a1b2c3d4`).
+ * Device type is auto-detected from user agent and screen dimensions.
+ *
+ * Usage:
+ * ```ts
+ * import { deviceIdentity } from './device-identity';
+ * const id = await deviceIdentity.getId();
+ * const name = await deviceIdentity.getName();
+ * ```
+ */
 class DeviceIdentityManager {
   private cachedInfo: DeviceInfo | null = null;
   private initPromise: Promise<void> | null = null;
@@ -82,19 +110,31 @@ class DeviceIdentityManager {
     return this.initPromise;
   }
 
-  /** Obtener el ID persistente del dispositivo. */
+  /**
+   * Get the persistent device ID.
+   *
+   * @returns The unique device identifier string
+   */
   async getId(): Promise<string> {
     await this.init();
     return this.cachedInfo!.deviceId;
   }
 
-  /** Obtener toda la info del dispositivo. */
+  /**
+   * Get full device info.
+   *
+   * @returns A copy of the current DeviceInfo object
+   */
   async getInfo(): Promise<DeviceInfo> {
     await this.init();
     return { ...this.cachedInfo! };
   }
 
-  /** Establecer un nombre legible para el dispositivo. */
+  /**
+   * Set a human-readable name for this device.
+   *
+   * @param name - The new device name
+   */
   async setName(name: string): Promise<void> {
     await this.init();
     this.cachedInfo!.name = name;
@@ -103,19 +143,34 @@ class DeviceIdentityManager {
     await db.put(STORE_NAME, this.cachedInfo);
   }
 
-  /** Obtener el nombre del dispositivo. */
+  /**
+   * Get the current device name.
+   *
+   * @returns The human-readable device name
+   */
   async getName(): Promise<string> {
     await this.init();
     return this.cachedInfo!.name;
   }
 
-  /** Obtener el tipo de dispositivo detectado. */
+  /**
+   * Get the auto-detected device type.
+   *
+   * @returns The detected device type (phone, tablet, pc, web, or unknown)
+   */
   async getDeviceType(): Promise<DeviceType> {
     await this.init();
     return this.cachedInfo!.deviceType;
   }
 
-  /** Resetear identidad (genera una nueva). */
+  /**
+   * Reset device identity, generating a new one.
+   *
+   * Deletes the existing identity from IndexedDB and creates fresh
+   * credentials with a new device ID.
+   *
+   * @returns The newly created DeviceInfo
+   */
   async reset(): Promise<DeviceInfo> {
     this.initPromise = null;
     this.cachedInfo = null;

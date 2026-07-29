@@ -3,6 +3,19 @@ import { GitWorkspaceService } from '../services/git/git-service';
 import { WebContainerRunnerService } from '../services/runtime/webcontainer-runner';
 import { XavierMemoryNode } from '../services/memory/xavier-memory-node';
 
+/**
+ * Available tool declarations for the autonomous agent loop.
+ *
+ * Each tool describes its name, description, and JSON Schema parameters
+ * that are sent to the LLM provider for function calling. Tools include:
+ * - `read_file` / `write_file`: Workspace file operations
+ * - `run_command`: Shell command execution in WebContainer
+ * - `list_directory`: Directory listing
+ * - `git_diff`: Uncommitted diff inspection
+ * - `memory_search`: Xavier memory retrieval
+ * - `complete`: Task completion signal
+ * - `run_python` / `pip_install`: Pyodide Python runtime operations
+ */
 export const AGENT_TOOLS: AgentToolDeclaration[] = [
   {
     name: 'read_file',
@@ -104,7 +117,27 @@ export const AGENT_TOOLS: AgentToolDeclaration[] = [
   },
 ];
 
+/**
+ * Synchronous executor for agent tool calls.
+ *
+ * Implements all tool operations (read/write files, run commands, list dirs,
+ * git diff, memory search, completion, Python execution) by delegating to
+ * the corresponding backend services (GitWorkspaceService, WebContainerRunnerService,
+ * XavierMemoryNode, PythonRunnerService).
+ *
+ * All methods are static — the executor is stateless and can be used directly
+ * by {@link AgentLoopRunner}.
+ */
 export class AgentToolExecutor {
+  /**
+   * Execute a named tool with the given arguments.
+   *
+   * @param projectName - Name of the project to operate on
+   * @param toolName - Tool identifier (e.g. 'read_file', 'write_file', 'run_command')
+   * @param args - Tool-specific arguments (see AGENT_TOOLS declarations for schema)
+   * @param onLog - Optional callback for real-time execution log messages
+   * @returns Result object containing output text, and optionally completion metadata
+   */
   public static async executeTool(
     projectName: string,
     toolName: string,

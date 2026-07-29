@@ -16,7 +16,30 @@ Rules:
 4. When all requirements are met and tests pass, call the complete tool with a full summary and commit message.
 5. Keep your actions precise, effective, and clean. Do not leave temporary broken files.`;
 
+/**
+ * Autonomous agent loop runner that executes a CodingTask using an LLM provider.
+ *
+ * Orchestrates the full lifecycle of a coding task:
+ * 1. Initializes memory context from Xavier Node
+ * 2. Creates the target git branch
+ * 3. Iterates LLM tool-calling loop (plan → exec → verify)
+ * 4. Commits changes and stores episodic memory on completion
+ * 5. Pushes lifecycle events via the P2P event bus
+ *
+ * The loop runs up to {@link MAX_ITERATIONS} iterations, querying the active
+ * LLM provider for tool calls (read, write, run commands, git ops, memory
+ * search, Python execution) and exits when the model calls the `complete`
+ * tool or the iteration limit is exceeded.
+ */
 export class AgentLoopRunner {
+  /**
+   * Execute a coding task through the autonomous agent loop.
+   *
+   * @param task - The coding task specification (project, prompt, branch, etc.)
+   * @param onTaskUpdate - Callback fired on every state change/step addition
+   * @returns The updated CodingTask with final status, steps, and result
+   * @throws {Error} If the agent exceeds the maximum iteration limit
+   */
   public static async runTask(
     task: CodingTask,
     onTaskUpdate: (updatedTask: CodingTask) => void
@@ -46,9 +69,10 @@ export class AgentLoopRunner {
     };
 
     /** Publicar evento al bus P2P. */
-    const publishEvent = (type: string, payload: Record<string, unknown> = {}) => {
+    const publishEvent = async (type: string, payload: Record<string, unknown> = {}) => {
       try {
-        edgeMeshClient.crdtEventBus.publish({ type, source: 'agent-loop', payload });
+        const bus = await edgeMeshClient.crdtEventBus;
+        bus.publish({ type, source: 'agent-loop', payload });
       } catch { /* P2P event bus not available */ }
     };
 
