@@ -181,5 +181,5 @@ class DeviceIdentityManager {
   }
 }
 
-/** Singleton global de identidad de dispositivo. */
+/** Global singleton device identity instance. */
 export const deviceIdentity = new DeviceIdentityManager();

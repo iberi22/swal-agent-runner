@@ -1,6 +1,14 @@
 import git from 'isomorphic-git';
 import { GitWorkspaceService } from './git-service';
 
+/**
+ * Status report from a Git sync cycle for a single project.
+ *
+ * @property projectName - Name of the project being synced
+ * @property status - Current sync state
+ * @property message - Optional human-readable status message
+ * @property lastCheckedAt - Timestamp of the last sync check
+ */
 export interface SyncStatus {
   projectName: string;
   status: 'idle' | 'fetching' | 'pulling' | 'synced' | 'conflict' | 'error';
@@ -10,6 +18,22 @@ export interface SyncStatus {
 
 type SyncListener = (status: SyncStatus) => void;
 
+/**
+ * Background Git sync service that periodically fetches and merges
+ * remote changes for all registered projects.
+ *
+ * Features:
+ * - Periodic auto-sync loop with configurable interval
+ * - Per-project status tracking and event emission
+ * - Conflict detection and browser notification
+ * - Graceful handling of transient errors
+ *
+ * Usage:
+ * ```ts
+ * GitSyncService.addListener((status) => console.log(status));
+ * GitSyncService.startAutoSync(30000); // poll every 30s
+ * ```
+ */
 export class GitSyncService {
   private static listeners = new Set<SyncListener>();
   private static intervalId: any = null;
@@ -18,6 +42,9 @@ export class GitSyncService {
 
   /**
    * Register a callback listener to receive real-time sync status updates.
+   *
+   * @param listener - Callback receiving SyncStatus updates
+   * @returns Unsubscribe function to remove the listener
    */
   public static addListener(listener: SyncListener): () => void {
     this.listeners.add(listener);
@@ -28,6 +55,8 @@ export class GitSyncService {
 
   /**
    * Remove a registered callback listener.
+   *
+   * @param listener - The listener to remove
    */
   public static removeListener(listener: SyncListener): void {
     this.listeners.delete(listener);
@@ -46,6 +75,9 @@ export class GitSyncService {
 
   /**
    * Get the last sync status for a specific project.
+   *
+   * @param projectName - Name of the project
+   * @returns The SyncStatus snapshot, or undefined if never synced
    */
   public static getProjectStatus(projectName: string): SyncStatus | undefined {
     return this.projectStatuses.get(projectName);

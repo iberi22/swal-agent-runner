@@ -14,24 +14,24 @@ async function getYjs(): Promise<typeof import('yjs')> {
   return _YjsModule;
 }
 
-/**
- * CrdtMemoryStore — Working memory store sobre Y.Map.
- *
- * Las memorias de trabajo (category='working') se almacenan en un
- * Y.Map compartido que replica automaticamente via y-webrtc a todos
- * los peers del mesh.
- *
- * Características:
- * - TTL (time-to-live) default 24h
- * - Hard cap de 500 entries
- * - Dedup por content_hash
- * - Categorías: solo 'working' (las demás van por HTTP a Xavier)
- */
-
+/** Name of the Y.Map within the Y.Doc that stores working memories. */
 const MAP_NAME = 'working:memories';
-const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+/** Default TTL for working memories: 24 hours in milliseconds. */
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+/** Hard cap on the number of working memory entries. */
 const MAX_ENTRIES = 500;
 
+/**
+ * Working memory entry stored in the CRDT shared Y.Map.
+ *
+ * @property id - Unique entry identifier
+ * @property content - Memory content text
+ * @property source - Origin source identifier (e.g. "swal-agent-runner")
+ * @property projectId - Associated project ID
+ * @property timestamp - Creation timestamp (ms since epoch)
+ * @property ttl - Time-to-live in milliseconds from timestamp
+ * @property contentHash - Hash of the content for deduplication
+ */
 export interface WorkingMemory {
   id: string;
   content: string;
@@ -52,6 +52,18 @@ function hashContent(content: string): string {
   return hash.toString(36);
 }
 
+/**
+ * CRDT-backed working memory store over a Y.Map.
+ *
+ * Working memories (category='working') are stored in a shared Y.Map
+ * that automatically replicates via y-webrtc to all mesh peers.
+ *
+ * Features:
+ * - Default 24-hour TTL (time-to-live)
+ * - Hard cap of 500 entries
+ * - Deduplication by content hash
+ * - Category filter: only 'working' memories (others go via HTTP to Xavier)
+ */
 export class CrdtMemoryStore {
   private memories: YMap<WorkingMemory> | null = null;
   private onChange: Set<(event: { type: string; memory: WorkingMemory }) => void> = new Set();
@@ -77,21 +89,24 @@ export class CrdtMemoryStore {
     });
   }
 
-  /** Wait for yjs module and Y.Map initialization. */
+  /**
+   * Wait for yjs module and Y.Map initialization.
+   */
   async ready(): Promise<void> {
     await this._ready;
   }
 
-  /** Ensure memories map is initialized. */
-  private async ensure(): Promise<YMap<WorkingMemory>> {
-    await this._ready;
-    return this.memories!;
-  }
-
-  /** Almacenar una memoria de trabajo. */
+  /**
+   * Store a working memory entry.
+   *
+   * Deduplicates by content hash. Enforces hard cap by evicting the oldest entry
+   * when the maximum is exceeded.
+   *
+   * @param memory - Memory data (id, timestamp, and contentHash are auto-generated)
+   * @returns The stored WorkingMemory entry
+   */
   async add(memory: Omit<WorkingMemory, 'id' | 'timestamp' | 'contentHash'>): Promise<WorkingMemory> {
     const memories = await this.ensure();
-    // Evitar duplicados por contenido
     const ch = hashContent(memory.content);
     const existing = this.findByHash(ch, memories);
     if (existing) return existing;
@@ -104,7 +119,7 @@ export class CrdtMemoryStore {
       ttl: memory.ttl || DEFAULT_TTL_MS,
     };
 
-    // Hard cap: eliminar la más vieja si excede max
+    // Hard cap: evict oldest entry if at capacity
     if (memories.size >= MAX_ENTRIES) {
       const oldest = this.getOldest(memories);
       if (oldest) memories.delete(oldest.id);
@@ -114,13 +129,24 @@ export class CrdtMemoryStore {
     return entry;
   }
 
-  /** Obtener una memoria por ID. */
+  /**
+   * Retrieve a working memory entry by ID.
+   *
+   * @param id - The memory entry identifier
+   * @returns The WorkingMemory entry, or undefined if not found
+   */
   async get(id: string): Promise<WorkingMemory | undefined> {
     const memories = await this.ensure();
     return memories.get(id);
   }
 
-  /** Buscar memorias por projectId. */
+  /**
+   * Find working memories by project ID.
+   *
+   * @param projectId - The project to filter by
+   * @param limit - Maximum number of results (default: 20)
+   * @returns Sorted array of matching entries (newest first)
+   */
   async findByProject(projectId: string, limit = 20): Promise<WorkingMemory[]> {
     const memories = await this.ensure();
     const results: WorkingMemory[] = [];
@@ -133,7 +159,13 @@ export class CrdtMemoryStore {
     return results.sort((a, b) => b.timestamp - a.timestamp);
   }
 
-  /** Buscar memorias por contenido (keyword match). */
+  /**
+   * Search working memories by keyword content match.
+   *
+   * @param query - Search terms (space-separated, words shorter than 3 chars ignored)
+   * @param limit - Maximum number of results (default: 10)
+   * @returns Scored and sorted array of matching entries
+   */
   async search(query: string, limit = 10): Promise<WorkingMemory[]> {
     const memories = await this.ensure();
     const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
@@ -155,13 +187,21 @@ export class CrdtMemoryStore {
       .map(s => s.mem);
   }
 
-  /** Eliminar una memoria. */
+  /**
+   * Delete a working memory entry.
+   *
+   * @param id - The memory entry identifier to remove
+   */
   async remove(id: string): Promise<void> {
     const memories = await this.ensure();
     memories.delete(id);
   }
 
-  /** Limpiar memorias expiradas. */
+  /**
+   * Remove all expired memory entries.
+   *
+   * @returns The number of entries cleaned
+   */
   async cleanExpired(): Promise<number> {
     const memories = await this.ensure();
     let cleaned = 0;
@@ -175,19 +215,32 @@ export class CrdtMemoryStore {
     return cleaned;
   }
 
-  /** Número de memorias activas. */
+  /**
+   * Get the number of active (non-expired) memories.
+   *
+   * @returns The current size of the memories map
+   */
   async getSize(): Promise<number> {
     const memories = await this.ensure();
     return memories.size;
   }
 
-  /** Suscribirse a cambios. */
+  /**
+   * Subscribe to memory change events.
+   *
+   * @param callback - Function called on every add/update/delete event
+   * @returns Unsubscribe function to remove the listener
+   */
   subscribe(callback: (event: { type: string; memory: WorkingMemory }) => void): () => void {
     this.onChange.add(callback);
     return () => this.onChange.delete(callback);
   }
 
-  /** Exportar todas las memorias activas. */
+  /**
+   * Export all active (non-expired) working memories as a plain array.
+   *
+   * @returns Sorted array of entries (newest first)
+   */
   async toJSON(): Promise<WorkingMemory[]> {
     const memories = await this.ensure();
     const result: WorkingMemory[] = [];
@@ -198,6 +251,11 @@ export class CrdtMemoryStore {
   }
 
   // ── Helpers ──
+
+  private async ensure(): Promise<YMap<WorkingMemory>> {
+    await this._ready;
+    return this.memories!;
+  }
 
   private isExpired(mem: WorkingMemory, now = Date.now()): boolean {
     return (now - mem.timestamp) > mem.ttl;
