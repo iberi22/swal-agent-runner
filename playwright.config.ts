@@ -22,8 +22,17 @@ export default defineConfig({
   /* Reporter to use. See https://playwright.dev/docs/reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
+  /* Use system Chromium for NixOS compatibility */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')`. */
+    channel: 'chromium',
+    headless: true,
+    launchOptions: {
+      executablePath: '/run/current-system/sw/bin/chromium',
+      env: {
+        ...process.env,
+        LD_LIBRARY_PATH: '/nix/store/gi1s8jh6314j808r8qjk9gn0rh52p5sn-nspr-4.38.2/lib:/nix/store/s6127pa293a0n56zf72241ig8cinghys-antigravity-1.23.2-fhsenv-rootfs/usr/lib64',
+      },
+    },
     baseURL: 'http://localhost:4173',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */

@@ -14,7 +14,7 @@ test.describe('Accessibility Audit — axe-core', () => {
   });
 
   test('mesh tab has no critical a11y violations', async ({ page }) => {
-    await page.click('[data-tab="mesh"]');
+    await page.getByText('P2P Mesh').click();
     await page.waitForTimeout(500);
     const { violations } = await injectAxeAndRun(page);
     const critical = violations.filter((v: any) => v.impact === 'critical' || v.impact === 'serious');
@@ -22,7 +22,7 @@ test.describe('Accessibility Audit — axe-core', () => {
   });
 
   test('new task tab has no critical a11y violations', async ({ page }) => {
-    await page.click('[data-tab="new-task"]');
+    await page.getByRole('button', { name: 'New Task' }).first().click();
     await page.waitForTimeout(500);
     const { violations } = await injectAxeAndRun(page);
     const critical = violations.filter((v: any) => v.impact === 'critical' || v.impact === 'serious');
@@ -30,7 +30,7 @@ test.describe('Accessibility Audit — axe-core', () => {
   });
 
   test('memory tab has no critical a11y violations', async ({ page }) => {
-    await page.click('[data-tab="memory"]');
+    await page.getByText('Xavier Sync').click();
     await page.waitForTimeout(500);
     const { violations } = await injectAxeAndRun(page);
     const critical = violations.filter((v: any) => v.impact === 'critical' || v.impact === 'serious');
