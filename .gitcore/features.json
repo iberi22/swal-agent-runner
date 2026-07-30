@@ -262,6 +262,26 @@
       "last_tested": "2026-07-29",
       "implemented_in": "vite.config.ts, src/services/mesh/*.ts, src/services/mesh/crdt-event-bus.ts, src/services/mesh/crdt-memory-store.ts",
       "notes": "Lazy yjs import in all mesh modules. Dynamic imports for CrdtEventBus, CrdtMemoryStore. Bundle: 646 KB (196 KB gzip). Wave 7 (subagent)."
+    },
+    {
+      "id": "WASM-CRATE-01",
+      "name": "Gestalt WASM Crate — Rust Core Compiled to WASM",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "crates/gestalt-wasm/, gestalt-wasm-core/",
+      "notes": "Rust gestalt-wasm crate with wasm-pack build, GestaltEngine trait, CrossModalMemory, GestaltStats, AuditoryCortex, VisualCortex. Nix flake for Rust workspace + wasm32-unknown-unknown target. PR #67."
+    },
+    {
+      "id": "PERF-MOB-01",
+      "name": "Lighthouse Performance Optimization — Mobile Score ≥85",
+      "status": "completed",
+      "progress_pct": 100,
+      "passes": true,
+      "last_tested": "2026-07-29",
+      "implemented_in": "vite.config.ts, lighthouserc.json, src/services/mesh/*.ts",
+      "notes": "Lazy dynamic imports for CrdtEventBus and CrdtMemoryStore. Bundle reduced from 2.4 MB to 646 KB (196 KB gzip). Lighthouse CI budget configured. Mobile performance score ≥85 achieved."
     }
   ]
 }
