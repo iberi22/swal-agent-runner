@@ -112,6 +112,10 @@ describe('PythonRunnerService', () => {
 
     it('should reuse the cached instance on subsequent calls', async () => {
       const first = await PythonRunnerService.getInstance();
+
+      // Force clearing of promise to verify that the instance itself is used as the cache
+      (PythonRunnerService as any).pyodidePromise = null;
+
       const second = await PythonRunnerService.getInstance();
       expect(first).toBe(mockPyodide);
       expect(second).toBe(mockPyodide);
@@ -145,7 +149,13 @@ describe('PythonRunnerService', () => {
     it('should return the pending promise when called concurrently', async () => {
       // The first call creates the promise; the second should reuse it
       const promise1 = PythonRunnerService.getInstance();
+      const p1 = (PythonRunnerService as any).pyodidePromise;
+
       const promise2 = PythonRunnerService.getInstance();
+      const p2 = (PythonRunnerService as any).pyodidePromise;
+
+      expect(p1).toBe(p2);
+      expect(p1).not.toBeNull();
 
       // Both promises should resolve to the same instance
       const result1 = await promise1;
@@ -213,8 +223,17 @@ describe('PythonRunnerService', () => {
 
       const res = await PythonRunnerService.runCode('print("hello")', onOutput);
       expect(res.exitCode).toBe(0);
-      expect(res.output).toContain('hello');
-      expect(outputReceived).toContain('hello');
+      expect(res.output).toBe('hello\n');
+      expect(outputReceived).toBe('hello\n');
+    });
+
+    it('should capture stdout when no onOutput callback is provided', async () => {
+      mockPyodide.setStdout = vi.fn((handler: any) => {
+        if (handler.batched) handler.batched('captured-only');
+      });
+      const res = await PythonRunnerService.runCode('print("captured-only")');
+      expect(res.exitCode).toBe(0);
+      expect(res.output).toBe('captured-only\n');
     });
 
     it('should capture errors and return exitCode 1', async () => {
@@ -224,7 +243,20 @@ describe('PythonRunnerService', () => {
 
       const res = await PythonRunnerService.runCode('invalid code');
       expect(res.exitCode).toBe(1);
-      expect(res.output).toContain('SyntaxError: invalid syntax');
+      expect(res.output).toBe('SyntaxError: invalid syntax\n');
+    });
+
+    it('should call onOutput with the complete error message when execution fails', async () => {
+      mockPyodide.runPythonAsync.mockRejectedValue(new Error('Fatal exception'));
+      let outputReceived = '';
+      const onOutput = (data: string) => {
+        outputReceived += data;
+      };
+
+      const res = await PythonRunnerService.runCode('raise Exception', onOutput);
+      expect(res.exitCode).toBe(1);
+      expect(res.output).toBe('Fatal exception\n');
+      expect(outputReceived).toBe('Fatal exception\n');
     });
 
     it('should work without an onOutput callback', async () => {
@@ -257,12 +289,8 @@ describe('PythonRunnerService', () => {
         onOutput,
       );
       expect(res.exitCode).toBe(0);
-      expect(res.output).toContain('line1');
-      expect(res.output).toContain('line2');
-      expect(outputChunks.length).toBeGreaterThanOrEqual(2);
-
-      // stderr also captured
-      expect(res.output).toContain('stderr line');
+      expect(res.output).toBe('line1\nline2\nstderr line\n');
+      expect(outputChunks).toEqual(['line1\n', 'line2\n', 'stderr line\n']);
     });
 
     it('should handle error message being a plain string (not Error)', async () => {
@@ -271,7 +299,7 @@ describe('PythonRunnerService', () => {
 
       const res = await PythonRunnerService.runCode('1/0');
       expect(res.exitCode).toBe(1);
-      expect(res.output).toContain('Division by zero');
+      expect(res.output).toBe('Division by zero\n');
     });
   });
 
@@ -287,10 +315,17 @@ describe('PythonRunnerService', () => {
       const res = await PythonRunnerService.pipInstall('numpy', onOutput);
       expect(res.exitCode).toBe(0);
       expect(mockPyodide.loadPackage).toHaveBeenCalledWith('micropip');
-      expect(mockPyodide.runPythonAsync).toHaveBeenCalled();
-      expect(res.output).toContain('Successfully installed package');
-      expect(res.output).toContain("'numpy'");
-      expect(outputReceived).toContain('Successfully installed package');
+      expect(mockPyodide.runPythonAsync).toHaveBeenCalledWith(
+        expect.stringContaining("await micropip.install('numpy')")
+      );
+
+      const expectedOutput =
+        "Loading micropip in Pyodide...\n" +
+        "Installing package 'numpy' via micropip...\n" +
+        "Successfully installed package 'numpy'!\n";
+
+      expect(res.output).toBe(expectedOutput);
+      expect(outputReceived).toBe(expectedOutput);
     });
 
     it('should handle pip install failure', async () => {
@@ -298,16 +333,36 @@ describe('PythonRunnerService', () => {
         new Error('Package not found: nonexistent-pkg'),
       );
 
+      let outputReceived = '';
+      const onOutput = (data: string) => {
+        outputReceived += data;
+      };
+
+      const res = await PythonRunnerService.pipInstall('nonexistent-pkg', onOutput);
+      expect(res.exitCode).toBe(1);
+
+      const expectedErrorMsg = "pip install failed: Package not found: nonexistent-pkg\n";
+      const expectedOutputReceived = "Loading micropip in Pyodide...\n" + expectedErrorMsg;
+
+      expect(res.output).toBe(expectedErrorMsg);
+      expect(outputReceived).toBe(expectedOutputReceived);
+    });
+
+    it('should handle pip install failure when error is a plain string', async () => {
+      mockPyodide.loadPackage.mockRejectedValue('Fatal string error');
       const res = await PythonRunnerService.pipInstall('nonexistent-pkg');
       expect(res.exitCode).toBe(1);
-      expect(res.output).toContain('pip install failed');
-      expect(res.output).toContain('Package not found');
+      expect(res.output).toBe("pip install failed: Fatal string error\n");
     });
 
     it('should work without onOutput callback', async () => {
       const res = await PythonRunnerService.pipInstall('requests');
       expect(res.exitCode).toBe(0);
-      expect(res.output).toContain('Successfully installed package');
+      expect(res.output).toBe(
+        "Loading micropip in Pyodide...\n" +
+        "Installing package 'requests' via micropip...\n" +
+        "Successfully installed package 'requests'!\n"
+      );
     });
 
     it('should handle error during micropip.runPythonAsync throw', async () => {
@@ -319,7 +374,7 @@ describe('PythonRunnerService', () => {
 
       const res = await PythonRunnerService.pipInstall('pandas');
       expect(res.exitCode).toBe(1);
-      expect(res.output).toContain('pip install failed');
+      expect(res.output).toBe("pip install failed: micropip install failed: dependency conflict\n");
     });
   });
 
@@ -393,6 +448,9 @@ describe('PythonRunnerService', () => {
       await expect(
         PythonRunnerService.mountProjectFiles('test-project'),
       ).resolves.toBeUndefined();
+
+      // Verify directory listing continued recursively inside the existing directory
+      expect(GitWorkspaceService.listDirectory).toHaveBeenCalledWith('test-project', 'existing_dir');
     });
 
     it('should skip non-EEXIST mkdir errors gracefully (outer try/catch swallows)', async () => {
@@ -483,6 +541,36 @@ describe('PythonRunnerService', () => {
 
       expect(fsMock.promises.stat).not.toHaveBeenCalled();
       expect(mockPyodide.FS.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('should abort recursion and not list directory if mkdir fails with non-EEXIST error', async () => {
+      const fsMock = {
+        promises: {
+          stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+        },
+      };
+
+      vi.mocked(GitWorkspaceService.getRawFS).mockReturnValue(fsMock as any);
+      vi.mocked(GitWorkspaceService.listDirectory).mockImplementation(
+        async (_projectName: string, dirPath?: string) => {
+          if (!dirPath) return ['bad_dir'];
+          if (dirPath === 'bad_dir') return ['should_not_be_reached.py'];
+          return [];
+        },
+      );
+
+      const customError = new Error('Permission Denied') as any;
+      customError.name = 'PermissionError';
+      customError.errno = 13;
+      mockPyodide.FS.mkdir = vi.fn().mockImplementation(() => {
+        throw customError;
+      });
+
+      await PythonRunnerService.mountProjectFiles('test-project');
+
+      // Since mkdir threw a non-EEXIST error, it should NOT recurse into 'bad_dir'
+      expect(GitWorkspaceService.listDirectory).toHaveBeenCalledTimes(1);
+      expect(GitWorkspaceService.listDirectory).not.toHaveBeenCalledWith('test-project', 'bad_dir');
     });
   });
 });

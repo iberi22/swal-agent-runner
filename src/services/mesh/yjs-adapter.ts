@@ -13,7 +13,7 @@ async function getYjs(): Promise<typeof import('yjs')> {
   if (!_yjsModule) {
     _yjsModule = import('yjs').then((m) => {
       // yjs exports * as Y from 'yjs' — handle both ESM and CJS shapes
-      return (m as any).default && (m as any).default?.Doc ? (m as any).default : m;
+      return (m as any).default && (m as any).default.Doc ? (m as any).default : m;
     });
   }
   return _yjsModule;

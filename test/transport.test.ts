@@ -38,7 +38,9 @@ describe('MemoryTransport', () => {
 
     await a.transmitir({ type: 'broadcast', payload: 'hello everyone' });
     expect(bMessages.length).toBe(1);
+    expect(bMessages[0]).toEqual({ type: 'broadcast', payload: 'hello everyone' });
     expect(cMessages.length).toBe(1);
+    expect(cMessages[0]).toEqual({ type: 'broadcast', payload: 'hello everyone' });
   });
 
   it('should report connection status', async () => {
@@ -208,7 +210,11 @@ describe('PeerJSTransport', () => {
     });
 
     const connectedPromise = new Promise<void>((resolve) => {
-      transport.on('conectado', () => resolve());
+      transport.on('conectado', (ev: any) => {
+        expect(ev.detail).toBeDefined();
+        expect(ev.detail.nodoId).toBe('test-node');
+        resolve();
+      });
     });
 
     await transport.iniciar();
@@ -239,7 +245,11 @@ describe('PeerJSTransport', () => {
     });
 
     const disconnectedPromise = new Promise<void>((resolve) => {
-      transport.on('desconectado', () => resolve());
+      transport.on('desconectado', (ev: any) => {
+        expect(ev.detail).toBeDefined();
+        expect(ev.detail.nodoId).toBe('test-node');
+        resolve();
+      });
     });
 
     await transport.iniciar();
@@ -332,8 +342,10 @@ describe('PeerJSTransport', () => {
     dataHandler!({ type: 'test', payload: 'incoming' });
     expect(incomingData).toHaveBeenCalledWith({ type: 'test', payload: 'incoming' });
 
+    expect(transport.obtenerConexiones()).toContain('incoming-peer');
     expect(closeHandler).not.toBeNull();
     closeHandler!();
+    expect(transport.obtenerConexiones()).not.toContain('incoming-peer');
   });
 
   it('should connect to remote peer and send data via enviar', async () => {
@@ -558,6 +570,9 @@ describe('PeerJSTransport', () => {
     const handler = vi.fn();
     transport.on('conectado', handler);
     transport.off('conectado', handler);
+
+    transport.eventTarget.dispatchEvent(new CustomEvent('conectado'));
+    expect(handler).not.toHaveBeenCalled();
 
     expect(() => {
       transport.off('conectado', handler);
