@@ -92,10 +92,12 @@ class DeviceIdentityManager {
       if (stored) {
         // Update lastSeen
         stored.lastSeen = Date.now();
+        (stored as any).key = 'deviceInfo';
         await db.put(STORE_NAME, stored);
         this.cachedInfo = stored;
       } else {
-        const newInfo: DeviceInfo = {
+        const newInfo: DeviceInfo & { key?: string } = {
+          key: 'deviceInfo',
           deviceId: 'swal-' + crypto.randomUUID().slice(0, 8),
           name: `Device-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
           deviceType: detectDeviceType(),
