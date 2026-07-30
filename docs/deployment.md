@@ -110,6 +110,31 @@ To support subpath routing and service worker scopes without manual code adjustm
 - `base: '/swal-agent-runner/'` to ensure asset URLs map correctly.
 - A custom `replace-sw-path` transform plugin that maps service worker registrations dynamically to the subpath base.
 
+#### Manual Deployment & Actions Budget Monitoring
+If the GitHub Actions budget is exhausted (which resets on the 1st of each month), automatic builds will not trigger. You can monitor the billing status and trigger the deploy workflow manually once the budget resets.
+
+1. **Monitor Actions Budget**:
+   Query the GitHub API to check if you have available minutes left:
+   ```bash
+   gh api repos/iberi22/swal-agent-runner/actions/billing
+   ```
+   Alternatively, you can run the provided utility monitoring script:
+   ```bash
+   ./bin/monitor-billing.sh
+   ```
+
+2. **Run the Workflow Manually**:
+   Once the budget is reset, run the deployment workflow manually using the GitHub CLI:
+   ```bash
+   gh workflow run "Deploy PWA to GitHub Pages" --repo iberi22/swal-agent-runner
+   ```
+   Or go to the **Actions** tab on your GitHub repository, select **Deploy PWA to GitHub Pages**, click the **Run workflow** dropdown, and click **Run workflow**.
+
+3. **Verify Site and Performance**:
+   - Check that the `gh-pages` branch has been created/updated.
+   - Verify that `https://iberi22.github.io/swal-agent-runner/` responds with `200 OK`.
+   - Run a Lighthouse mobile audit to ensure the production score is greater than 90 (Mobile Score > 90).
+
 #### Crucial Subpath Setup
 If deploying to a custom user repository like `https://<username>.github.io/<custom-repo-name>/`, you **must** update the `base` property in `vite.config.ts` before building:
 ```typescript

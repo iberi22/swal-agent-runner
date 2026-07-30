@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { edgeMeshClient, EdgeMeshClient } from '../edge-mesh-client';
 import { deviceIdentity } from '../device-identity';
 import type { ITransport } from '../transport';
