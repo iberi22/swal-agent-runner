@@ -39,3 +39,4 @@ xavier_memory.db-wal
 # Rust build artifacts
 target/
 gestalt-wasm/target/
+.stryker-tmp/
