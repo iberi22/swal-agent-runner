@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { edgeMeshClient, EdgeMeshClient } from '../edge-mesh-client';
 import { deviceIdentity } from '../device-identity';
 import type { ITransport } from '../transport';
@@ -790,7 +790,7 @@ describe('Edge Cases', () => {
   it('deviceIdentity fallback generates swal- prefixed id on error', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.42);
     // Make deviceIdentity.getId() reject
-    (deviceIdentity.getId as vi.Mock).mockRejectedValue(new Error('IndexedDB unavailable'));
+    (deviceIdentity.getId as Mock).mockRejectedValue(new Error('IndexedDB unavailable'));
 
     // Ensure the singleton has a valid deviceId (it was set during import time)
     expect(edgeMeshClient.deviceId).toMatch(/^swal-/);
