@@ -1,7 +1,37 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
 import { edgeMeshClient, EdgeMeshClient } from '../edge-mesh-client';
 import { deviceIdentity } from '../device-identity';
 import type { ITransport } from '../transport';
+import { CrdtEventBus } from '../crdt-event-bus';
+import { CrdtMemoryStore } from '../crdt-memory-store';
+import { YjsAdapter } from '../yjs-adapter';
+import path from 'path';
+
+// Register .ts and .tsx loaders so Node resolves .ts files
+if (!require.extensions['.ts']) {
+  require.extensions['.ts'] = require.extensions['.js'];
+}
+if (!require.extensions['.tsx']) {
+  require.extensions['.tsx'] = require.extensions['.js'];
+}
+
+// Populate require.cache so that require('./crdt-event-bus') works in Vitest
+const busPathTs = path.resolve(__dirname, '../crdt-event-bus.ts');
+const storePathTs = path.resolve(__dirname, '../crdt-memory-store.ts');
+
+require.cache[busPathTs] = {
+  id: busPathTs,
+  filename: busPathTs,
+  loaded: true,
+  exports: { CrdtEventBus },
+} as any;
+
+require.cache[storePathTs] = {
+  id: storePathTs,
+  filename: storePathTs,
+  loaded: true,
+  exports: { CrdtMemoryStore },
+} as any;
 
 // ----------------------------------------------------------------
 // Module-level mocks (hoisted by vitest to top of file)
@@ -26,13 +56,15 @@ const mockWebrtcProvider = {
   destroy: vi.fn(),
 };
 
+let initCrdtSyncMock = vi.fn().mockImplementation(() => Promise.resolve({
+  webrtc: mockWebrtcProvider,
+  indexeddb: { destroy: () => {} },
+  destroy: mockDestroy,
+  isOnline: () => isOnlineMock(),
+}));
+
 vi.mock('../crdt-sync', () => ({
-  initCrdtSync: () => Promise.resolve({
-    webrtc: mockWebrtcProvider,
-    indexeddb: { destroy: () => {} },
-    destroy: mockDestroy,
-    isOnline: () => isOnlineMock(),
-  }),
+  initCrdtSync: (...args: any[]) => initCrdtSyncMock(...args),
 }));
 
 // ----------------------------------------------------------------
@@ -119,6 +151,13 @@ beforeEach(async () => {
   mockWebrtcProvider.on.mockClear();
   mockWebrtcProvider.off.mockClear();
   mockWebrtcProvider.destroy.mockClear();
+
+  initCrdtSyncMock.mockImplementation(() => Promise.resolve({
+    webrtc: mockWebrtcProvider,
+    indexeddb: { destroy: () => {} },
+    destroy: mockDestroy,
+    isOnline: () => isOnlineMock(),
+  }));
 
   // Reset edgeMeshClient state
   await edgeMeshClient.leaveRoom();
@@ -790,8 +829,7 @@ describe('Edge Cases', () => {
   it('deviceIdentity fallback generates swal- prefixed id on error', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.42);
     // Make deviceIdentity.getId() reject
-    (deviceIdentity.getId as any).mockRejectedValue(new Error('IndexedDB unavailable'));
-
+    (deviceIdentity.getId as Mock).mockRejectedValue(new Error('IndexedDB unavailable'));
     // Ensure the singleton has a valid deviceId (it was set during import time)
     expect(edgeMeshClient.deviceId).toMatch(/^swal-/);
 
@@ -920,5 +958,463 @@ describe('EdgeMeshClient Events Cleanup', () => {
     await edgeMeshClient.joinRoom('new-room-after-destroy');
     expect(events.length).toBe(1);
     expect(events[0].room).toBe('swal-agent-runner/new-room-after-destroy');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// L) ADDITIONAL COVERAGE FOR STRYKER MUTATION SCORE
+// ─────────────────────────────────────────────────────────────
+
+describe('EdgeMeshClient Extra Stryker Coverage', () => {
+  it('triggers _ensureYjs internally on .yjs getter access and returns it once loaded', async () => {
+    setPrivateField(edgeMeshClient, '_yjs', null);
+    setPrivateField(edgeMeshClient, '_yjsPromise', null);
+
+    const yjs = edgeMeshClient.yjs;
+    await vi.waitFor(() => {
+      expect(getPrivateField(edgeMeshClient, '_yjs')).not.toBeNull();
+    });
+
+    expect(edgeMeshClient.yjs).toBe(getPrivateField(edgeMeshClient, '_yjs'));
+  });
+
+  it('throws an error if YjsAdapter has not been initialized (event bus)', () => {
+    setPrivateField(edgeMeshClient, '_eventBus', null);
+    setPrivateField(edgeMeshClient, '_yjs', null);
+
+    expect(() => edgeMeshClient.crdtEventBus).toThrow(
+      'CrdtEventBus not available — ensure YjsAdapter is initialized'
+    );
+  });
+
+  it('throws an error if YjsAdapter has not been initialized (memory store)', () => {
+    setPrivateField(edgeMeshClient, '_crdtMemoryStore', null);
+    setPrivateField(edgeMeshClient, '_yjs', null);
+
+    expect(() => edgeMeshClient.crdtMemoryStore).toThrow(
+      'CrdtMemoryStore not available — ensure YjsAdapter is initialized'
+    );
+  });
+
+  it('instantiates and caches CrdtEventBus when YjsAdapter is loaded', async () => {
+    setPrivateField(edgeMeshClient, '_eventBus', null);
+    await edgeMeshClient.getDoc(); // initializes YjsAdapter
+
+    const bus = edgeMeshClient.crdtEventBus;
+    expect(bus).toBeDefined();
+    expect(edgeMeshClient.crdtEventBus).toBe(bus); // check caching
+  });
+
+  it('instantiates and caches CrdtMemoryStore when YjsAdapter is loaded', async () => {
+    setPrivateField(edgeMeshClient, '_crdtMemoryStore', null);
+    await edgeMeshClient.getDoc(); // initializes YjsAdapter
+
+    const store = edgeMeshClient.crdtMemoryStore;
+    expect(store).toBeDefined();
+    expect(edgeMeshClient.crdtMemoryStore).toBe(store); // check caching
+  });
+
+  it('reconnect returns early if no mesh room, explicitly disconnected, or already scheduled', () => {
+    const spySetTimeout = vi.spyOn(globalThis, 'setTimeout');
+
+    // 1. No mesh room
+    setPrivateField(edgeMeshClient, '_meshRoom', '');
+    (edgeMeshClient as any).reconnect();
+    expect(spySetTimeout).not.toHaveBeenCalled();
+
+    // 2. Explicitly disconnected
+    setPrivateField(edgeMeshClient, '_meshRoom', 'some-room');
+    setPrivateField(edgeMeshClient, '_isExplicitlyDisconnected', true);
+    spySetTimeout.mockClear();
+    (edgeMeshClient as any).reconnect();
+    expect(spySetTimeout).not.toHaveBeenCalled();
+
+    // 3. Reconnect already scheduled
+    setPrivateField(edgeMeshClient, '_isExplicitlyDisconnected', false);
+    setPrivateField(edgeMeshClient, '_reconnectTimeout', 12345);
+    spySetTimeout.mockClear();
+    (edgeMeshClient as any).reconnect();
+    expect(spySetTimeout).not.toHaveBeenCalled();
+
+    spySetTimeout.mockRestore();
+  });
+
+  it('reconnect timeout callback returns early if explicitly disconnected or room empty during delay', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    await edgeMeshClient.joinRoom('test-room');
+    isOnlineMock.mockReturnValue(false);
+    if (statusHandler) {
+      statusHandler({ connected: false });
+    }
+
+    setPrivateField(edgeMeshClient, '_isExplicitlyDisconnected', true);
+
+    const ensureSpy = vi.spyOn(edgeMeshClient as any, '_ensureYjs');
+    await vi.advanceTimersByTimeAsync(1500);
+
+    expect(ensureSpy).not.toHaveBeenCalled();
+    ensureSpy.mockRestore();
+  });
+
+  it('reconnect timeout cleans up existing _crdtSync even if destroy throws', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    await edgeMeshClient.joinRoom('test-room');
+
+    const mockSync = {
+      webrtc: {
+        off: vi.fn(),
+      },
+      destroy: vi.fn().mockImplementation(() => {
+        throw new Error('mock destroy failure');
+      }),
+      isOnline: () => false,
+    };
+    setPrivateField(edgeMeshClient, '_crdtSync', mockSync);
+
+    isOnlineMock.mockReturnValue(false);
+    if (statusHandler) {
+      statusHandler({ connected: false });
+    }
+
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(mockSync.destroy).toHaveBeenCalled();
+  });
+
+  it('reconnect timeout calls reconnect recursively when initCrdtSync throws', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    await edgeMeshClient.joinRoom('test-room');
+
+    isOnlineMock.mockReturnValue(false);
+    if (statusHandler) {
+      statusHandler({ connected: false });
+    }
+
+    initCrdtSyncMock.mockRejectedValueOnce(new Error('initCrdtSync failed during reconnect'));
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const reconnectSpy = vi.spyOn(edgeMeshClient as any, 'reconnect');
+
+    await vi.advanceTimersByTimeAsync(1500);
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[EdgeMesh] Reconnection attempt failed:',
+      expect.any(Error)
+    );
+    expect(reconnectSpy).toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+    reconnectSpy.mockRestore();
+  });
+
+  it('handles startHeartbeat error if getDoc throws', async () => {
+    vi.spyOn(edgeMeshClient, 'getDoc').mockRejectedValueOnce(new Error('getDoc failed'));
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await (edgeMeshClient as any).startHeartbeat();
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[EdgeMesh] Failed to start heartbeat:',
+      expect.any(Error)
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it('handles startHeartbeat interval error if deviceIdentity.getInfo throws', async () => {
+    await edgeMeshClient.joinRoom('test-room');
+    if (statusHandler) {
+      statusHandler({ connected: true });
+    }
+    await vi.runOnlyPendingTimersAsync();
+
+    vi.spyOn(deviceIdentity, 'getInfo').mockRejectedValue(new Error('getInfo failed'));
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    vi.advanceTimersByTime(10000);
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[EdgeMesh] Heartbeat error:',
+      expect.any(Error)
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it('updates mesh peers when peer list has changed but size is equal', async () => {
+    await edgeMeshClient.joinRoom('test-room');
+    if (statusHandler) {
+      statusHandler({ connected: true });
+    }
+    await vi.runOnlyPendingTimersAsync();
+
+    const doc = await edgeMeshClient.getDoc();
+    const presenceMap = doc.getMap<any>('mesh:presence');
+
+    presenceMap.set('peer-a', {
+      deviceId: 'peer-a',
+      name: 'Peer A',
+      deviceType: 'pc',
+      lastHeartbeat: Date.now(),
+    });
+    await vi.runOnlyPendingTimersAsync();
+    expect(edgeMeshClient.meshPeers).toEqual(['peer-a']);
+
+    presenceMap.delete('peer-a');
+    presenceMap.set('peer-b', {
+      deviceId: 'peer-b',
+      name: 'Peer B',
+      deviceType: 'pc',
+      lastHeartbeat: Date.now(),
+    });
+    await vi.runOnlyPendingTimersAsync();
+    expect(edgeMeshClient.meshPeers).toEqual(['peer-b']);
+  });
+
+  it('onPeerConnected falls back to unknown if detail or nodoId is missing', () => {
+    const transport = createMockTransport('peer-node');
+    edgeMeshClient.setTransport(transport);
+
+    fireTransportEvent(transport, 'conectado', {});
+    expect(getPrivateField(edgeMeshClient, '_peerEndpoint')).toBe('unknown');
+
+    fireTransportEvent(transport, 'conectado', undefined);
+    expect(getPrivateField(edgeMeshClient, '_peerEndpoint')).toBe('unknown');
+  });
+
+  it('stopHeartbeat ignores errors if doc.getMap throws', async () => {
+    await edgeMeshClient.joinRoom('test-room');
+    if (statusHandler) {
+      statusHandler({ connected: true });
+    }
+    await vi.runOnlyPendingTimersAsync();
+
+    const doc = await edgeMeshClient.getDoc();
+    vi.spyOn(doc, 'getMap').mockImplementation(() => {
+      throw new Error('mock getMap failure');
+    });
+
+    await expect(edgeMeshClient.leaveRoom()).resolves.not.toThrow();
+  });
+
+  it('calls YjsAdapter.create exactly once across multiple ensure calls', async () => {
+    const createSpy = vi.spyOn(YjsAdapter, 'create');
+    setPrivateField(edgeMeshClient, '_yjs', null);
+    setPrivateField(edgeMeshClient, '_yjsPromise', null);
+
+    await (edgeMeshClient as any)._ensureYjs();
+    await (edgeMeshClient as any)._ensureYjs();
+
+    expect(createSpy).toHaveBeenCalledTimes(1);
+    createSpy.mockRestore();
+  });
+
+  it('joinRoom clears existing _reconnectTimeout', async () => {
+    const spyClear = vi.spyOn(globalThis, 'clearTimeout');
+    setPrivateField(edgeMeshClient, '_reconnectTimeout', 9999);
+
+    await edgeMeshClient.joinRoom('clear-reconnect-test');
+
+    expect(spyClear).toHaveBeenCalledWith(9999);
+    expect(getPrivateField(edgeMeshClient, '_reconnectTimeout')).toBeNull();
+    spyClear.mockRestore();
+  });
+
+  it('joinRoom initializes CRDT sync with maxConnections: 10', async () => {
+    await edgeMeshClient.joinRoom('max-conn-test');
+    expect(initCrdtSyncMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      'swal-agent-runner/max-conn-test',
+      { maxConnections: 10 }
+    );
+  });
+
+  it('joinRoom when offline schedules reconnect check after 5s', async () => {
+    isOnlineMock.mockReturnValue(false);
+    const reconnectSpy = vi.spyOn(edgeMeshClient as any, 'reconnect');
+
+    await edgeMeshClient.joinRoom('offline-join-test');
+
+    // Reconnect timeout should be set
+    expect(getPrivateField(edgeMeshClient, '_reconnectTimeout')).not.toBeNull();
+
+    // Advance 5 seconds to fire the check
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(reconnectSpy).toHaveBeenCalled();
+    reconnectSpy.mockRestore();
+  });
+
+  it('leaveRoom sets _isExplicitlyDisconnected to true', async () => {
+    setPrivateField(edgeMeshClient, '_isExplicitlyDisconnected', false);
+    await edgeMeshClient.leaveRoom();
+    expect(getPrivateField(edgeMeshClient, '_isExplicitlyDisconnected')).toBe(true);
+  });
+
+  it('leaveRoom clears existing _reconnectTimeout', async () => {
+    const spyClear = vi.spyOn(globalThis, 'clearTimeout');
+    setPrivateField(edgeMeshClient, '_reconnectTimeout', 4321);
+
+    await edgeMeshClient.leaveRoom();
+
+    expect(spyClear).toHaveBeenCalledWith(4321);
+    expect(getPrivateField(edgeMeshClient, '_reconnectTimeout')).toBeNull();
+    spyClear.mockRestore();
+  });
+
+  it('leaveRoom deletes own presence from presenceMap', async () => {
+    await edgeMeshClient.joinRoom('delete-presence-test');
+    const doc = await edgeMeshClient.getDoc();
+    const presenceMap = doc.getMap<any>('mesh:presence');
+    presenceMap.set(edgeMeshClient.deviceId, { deviceId: edgeMeshClient.deviceId });
+
+    expect(presenceMap.has(edgeMeshClient.deviceId)).toBe(true);
+
+    await edgeMeshClient.leaveRoom();
+
+    expect(presenceMap.has(edgeMeshClient.deviceId)).toBe(false);
+  });
+
+  it('leaveRoom handles _crdtSync.destroy failure gracefully', async () => {
+    await edgeMeshClient.joinRoom('destroy-fail-test');
+
+    const mockSync = {
+      webrtc: {
+        off: vi.fn(),
+      },
+      destroy: vi.fn().mockImplementation(() => {
+        throw new Error('destroy failure');
+      }),
+      isOnline: () => true,
+    };
+    setPrivateField(edgeMeshClient, '_crdtSync', mockSync);
+
+    await expect(edgeMeshClient.leaveRoom()).resolves.not.toThrow();
+    expect(getPrivateField(edgeMeshClient, '_crdtSync')).toBeNull();
+  });
+
+  it('handleConnected resets _reconnectAttempts to 0', async () => {
+    await edgeMeshClient.joinRoom('reconnect-reset-test');
+    setPrivateField(edgeMeshClient, '_reconnectAttempts', 5);
+
+    // Trigger connected status
+    if (statusHandler) {
+      statusHandler({ connected: true });
+    }
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(getPrivateField(edgeMeshClient, '_reconnectAttempts')).toBe(0);
+  });
+
+  it('reconnect calculates exponential backoff delay and respects the 30000ms cap', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5); // jitter will be exactly 500ms
+    setPrivateField(edgeMeshClient, '_meshRoom', 'backoff-test');
+    setPrivateField(edgeMeshClient, '_isExplicitlyDisconnected', false);
+    setPrivateField(edgeMeshClient, '_reconnectTimeout', null);
+
+    const delays: number[] = [];
+    edgeMeshClient.events.addEventListener('mesh:reconnecting', (e: any) => {
+      delays.push(e.detail.delay);
+    });
+
+    // Attempt 1: delay = Math.min(1000 * 2^0, 30000) + 500 = 1500ms
+    setPrivateField(edgeMeshClient, '_reconnectAttempts', 0);
+    (edgeMeshClient as any).reconnect();
+    expect(delays[0]).toBe(1500);
+
+    // Attempt 2: delay = Math.min(1000 * 2^1, 30000) + 500 = 2500ms
+    setPrivateField(edgeMeshClient, '_reconnectTimeout', null);
+    setPrivateField(edgeMeshClient, '_reconnectAttempts', 1);
+    (edgeMeshClient as any).reconnect();
+    expect(delays[1]).toBe(2500);
+
+    // Attempt 6 (capped): delay = Math.min(1000 * 2^5, 30000) + 500 = Math.min(32000, 30000) + 500 = 30500ms
+    setPrivateField(edgeMeshClient, '_reconnectTimeout', null);
+    setPrivateField(edgeMeshClient, '_reconnectAttempts', 5);
+    (edgeMeshClient as any).reconnect();
+    expect(delays[2]).toBe(30500);
+  });
+
+  it('updateMeshPeers handles simultaneous join and leave correctly', async () => {
+    await edgeMeshClient.joinRoom('simultaneous-test');
+    if (statusHandler) {
+      statusHandler({ connected: true });
+    }
+    await vi.runOnlyPendingTimersAsync();
+
+    const doc = await edgeMeshClient.getDoc();
+    const presenceMap = doc.getMap<any>('mesh:presence');
+
+    // Setup initial peer list with peer-a
+    presenceMap.set('peer-a', {
+      deviceId: 'peer-a',
+      name: 'Peer A',
+      deviceType: 'pc',
+      lastHeartbeat: Date.now(),
+    });
+    await vi.runOnlyPendingTimersAsync();
+
+    // Set up listeners
+    const events: string[] = [];
+    edgeMeshClient.events.addEventListener('mesh:peer-joined', (e: any) => {
+      events.push(`joined:${e.detail.peerId}`);
+    });
+    edgeMeshClient.events.addEventListener('mesh:peer-left', (e: any) => {
+      events.push(`left:${e.detail.peerId}`);
+    });
+
+    // Remove peer-a and add peer-b in the same update cycle
+    doc.transact(() => {
+      presenceMap.delete('peer-a');
+      presenceMap.set('peer-b', {
+        deviceId: 'peer-b',
+        name: 'Peer B',
+        deviceType: 'pc',
+        lastHeartbeat: Date.now(),
+      });
+    });
+
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(events).toContain('left:peer-a');
+    expect(events).toContain('joined:peer-b');
+  });
+
+  it('joinRoom handles initCrdtSync failure by logging, resetting _meshRoom, and rethrowing', async () => {
+    initCrdtSyncMock.mockRejectedValueOnce(new Error('P2P connection failed'));
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(edgeMeshClient.joinRoom('fail-room')).rejects.toThrow('P2P connection failed');
+
+    expect(edgeMeshClient.meshRoom).toBe('');
+    expect(consoleSpy).toHaveBeenCalledWith('[EdgeMesh] Failed to join mesh room:', expect.any(Error));
+    consoleSpy.mockRestore();
+  });
+
+  it('reconnect timeout calls handleConnected if online becomes true', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    await edgeMeshClient.joinRoom('test-room');
+
+    isOnlineMock.mockReturnValue(false);
+    if (statusHandler) {
+      statusHandler({ connected: false });
+    }
+
+    // Now make it online for the next call
+    isOnlineMock.mockReturnValue(true);
+
+    const handleConnectedSpy = vi.spyOn(edgeMeshClient as any, 'handleConnected');
+
+    await vi.advanceTimersByTimeAsync(1500);
+
+    expect(handleConnectedSpy).toHaveBeenCalled();
+    handleConnectedSpy.mockRestore();
+  });
+
+  it('startHeartbeat initializes _deviceId if empty', async () => {
+    setPrivateField(edgeMeshClient, '_deviceId', '');
+    await edgeMeshClient.joinRoom('device-id-init-test');
+
+    await vi.waitFor(() => {
+      expect(edgeMeshClient.deviceId).toBe('swal-test-device');
+    });
   });
 });
