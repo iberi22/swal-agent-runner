@@ -790,7 +790,7 @@ describe('Edge Cases', () => {
   it('deviceIdentity fallback generates swal- prefixed id on error', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.42);
     // Make deviceIdentity.getId() reject
-    (deviceIdentity.getId as vi.Mock).mockRejectedValue(new Error('IndexedDB unavailable'));
+    (deviceIdentity.getId as any).mockRejectedValue(new Error('IndexedDB unavailable'));
 
     // Ensure the singleton has a valid deviceId (it was set during import time)
     expect(edgeMeshClient.deviceId).toMatch(/^swal-/);

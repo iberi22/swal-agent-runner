@@ -67,6 +67,7 @@ vi.mock('yjs', () => ({
 
 describe('YjsAdapter', () => {
   beforeEach(() => {
+    vi.resetModules();
     vi.clearAllMocks();
     // Re-establish default mock behaviors
     mockApplyUpdate.mockImplementation((_doc: any, _update: Uint8Array, _origin: unknown) => {});
@@ -292,5 +293,88 @@ describe('YjsAdapter', () => {
     expect(adapter.doc).toBeDefined();
     expect(adapter.getState).toBeDefined();
     expect(adapter.applyUpdate).toBeDefined();
+  });
+
+  // ── yjs dynamic import and caching ─────────────────────────────────
+
+  describe('yjs dynamic import and caching', () => {
+    it('should cache the yjs module promise', async () => {
+      let defaultAccessCount = 0;
+      vi.doMock('yjs', () => {
+        const mockModule = {
+          get default() {
+            defaultAccessCount++;
+            return {
+              Doc: MockDoc,
+              encodeStateAsUpdate: mockEncodeStateAsUpdate,
+              encodeStateVector: mockEncodeStateVector,
+            };
+          },
+          Doc: MockDoc,
+          encodeStateAsUpdate: mockEncodeStateAsUpdate,
+          encodeStateVector: mockEncodeStateVector,
+        };
+        return mockModule;
+      });
+
+      const { YjsAdapter } = await import('../src/services/mesh/yjs-adapter');
+      const adapter = await YjsAdapter.create();
+
+      // Reset access count after initial load
+      defaultAccessCount = 0;
+
+      // Trigger subsequent methods that call getYjs()
+      await adapter.getState();
+      await adapter.getStateVector();
+
+      expect(defaultAccessCount).toBe(0);
+    });
+
+    it('should handle ESM shape with default.Doc', async () => {
+      vi.doMock('yjs', () => ({
+        default: {
+          Doc: MockDoc,
+          applyUpdate: mockApplyUpdate,
+        },
+        Doc: MockDoc,
+      }));
+
+      const { YjsAdapter } = await import('../src/services/mesh/yjs-adapter');
+      const adapter = await YjsAdapter.create();
+      await adapter.applyUpdate(new Uint8Array([1]));
+      expect(mockApplyUpdate).toHaveBeenCalled();
+    });
+
+    it('should handle CJS/fallback shape without default.Doc', async () => {
+      const mockApplyUpdateCjs = vi.fn();
+      vi.doMock('yjs', () => ({
+        __esModule: true,
+        default: undefined,
+        Doc: MockDoc,
+        applyUpdate: mockApplyUpdateCjs,
+      }));
+
+      const { YjsAdapter } = await import('../src/services/mesh/yjs-adapter');
+      const adapter = await YjsAdapter.create();
+      await adapter.applyUpdate(new Uint8Array([2]));
+      expect(mockApplyUpdateCjs).toHaveBeenCalled();
+    });
+
+    it('should handle shape with default but no default.Doc', async () => {
+      const mockApplyUpdateNoDoc = vi.fn();
+      vi.doMock('yjs', () => ({
+        default: {
+          // no Doc here
+          applyUpdate: mockApplyUpdateNoDoc,
+        },
+        Doc: MockDoc,
+        applyUpdate: mockApplyUpdateNoDoc,
+      }));
+
+      const { YjsAdapter } = await import('../src/services/mesh/yjs-adapter');
+      const adapter = await YjsAdapter.create();
+      await adapter.applyUpdate(new Uint8Array([3]));
+      expect(mockApplyUpdateNoDoc).toHaveBeenCalled();
+    });
   });
 });
