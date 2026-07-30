@@ -91,11 +91,13 @@ describe('gestalt-worker — worker_spawned on import', () => {
     vi.resetModules();
   });
 
-  it('should postMessage worker_spawned when module is loaded', async () => {
+  it('should postMessage worker_spawned when module is loaded with precise timestamp payload', async () => {
     await import('../src/workers/gestalt-worker');
     expect(mockPostMessage).toHaveBeenCalledWith({
       type: 'worker_spawned',
-      payload: expect.any(Object),
+      payload: {
+        timestamp: expect.any(Number),
+      },
     });
   });
 });
@@ -155,14 +157,24 @@ describe('gestalt-worker — MockGestaltEngine', () => {
     expect(report.success).toBe(true);
   });
 
-  it('should return subscribed events', async () => {
+  it('should return subscribed events with precise JSON structure', async () => {
     const { MockGestaltEngine } = await import('../src/workers/gestalt-worker');
     const engine = new MockGestaltEngine();
 
     const events = engine.subscribeEvents();
     expect(events).toHaveLength(2);
-    expect(events[0]).toContain('engine_initialized');
-    expect(events[1]).toContain('execution_ready');
+
+    const parsed0 = JSON.parse(events[0]);
+    expect(parsed0).toEqual({
+      type: 'engine_initialized',
+      data: { timestamp: expect.any(Number) },
+    });
+
+    const parsed1 = JSON.parse(events[1]);
+    expect(parsed1).toEqual({
+      type: 'execution_ready',
+      data: { ready: true },
+    });
   });
 
   it('should return correct mock status', async () => {
@@ -175,7 +187,13 @@ describe('gestalt-worker — MockGestaltEngine', () => {
     expect(status.engineType).toBe('mock');
   });
 
-  it('should record calls in getCallLog', async () => {
+  it('should initialize started to false', async () => {
+    const { MockGestaltEngine } = await import('../src/workers/gestalt-worker');
+    const engine = new MockGestaltEngine() as any;
+    expect(engine.started).toBe(false);
+  });
+
+  it('should record calls in getCallLog with precise truncation to 40 characters', async () => {
     const { MockGestaltEngine } = await import('../src/workers/gestalt-worker');
     const engine = new MockGestaltEngine();
 
@@ -183,23 +201,24 @@ describe('gestalt-worker — MockGestaltEngine', () => {
 
     engine.executeRunSpec({
       base_ref: 'main',
-      task: 'Log call 1',
+      task: 'A'.repeat(100),
       agents: [{ id: 'a1', command: 'cmd', args: [] }],
       max_parallel: 1,
       timeout: 1000,
       push: false,
     });
     expect(engine.getCallLog()).toHaveLength(1);
-    expect(engine.getCallLog()[0]).toContain('executeRunSpec:Log call 1');
+    expect(engine.getCallLog()[0]).toBe(`executeRunSpec:${'A'.repeat(40)}`);
 
     engine.subscribeEvents();
     expect(engine.getCallLog()).toHaveLength(2);
     expect(engine.getCallLog()[1]).toBe('subscribeEvents');
   });
 
-  it('should truncate long task names in output', async () => {
+  it('should truncate long task names in output to 60 characters and verify precise console log arguments', async () => {
     const { MockGestaltEngine } = await import('../src/workers/gestalt-worker');
     const engine = new MockGestaltEngine();
+    const consoleSpy = vi.spyOn(console, 'log');
 
     const longTask = 'A'.repeat(100);
     const report = engine.executeRunSpec({
@@ -214,14 +233,22 @@ describe('gestalt-worker — MockGestaltEngine', () => {
     // Output should be truncated to 60 chars
     expect(report.agents[0].output!.length).toBeLessThan(100);
     expect(report.agents[0].output).toContain('A'.repeat(60));
+
+    // Verify precise console.log format to kill Stryker string literal mutations
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[GestaltWorker] MOCK executeRunSpec:',
+      report.run_id,
+      'A'.repeat(60)
+    );
   });
 });
 
 // ── Tests: WasmGestaltEngineProxy ─────────────────────────────────────
 
 describe('gestalt-worker — WasmGestaltEngineProxy', () => {
-  it('should proxy executeRunSpec to the inner WASM engine', async () => {
+  it('should proxy executeRunSpec to the inner WASM engine and log precise message', async () => {
     const { WasmGestaltEngineProxy } = await import('../src/workers/gestalt-worker');
+    const consoleSpy = vi.spyOn(console, 'log');
     const innerExecute = vi.fn().mockReturnValue({
       run_id: 'proxy-run-1',
       task: 'proxy task',
@@ -250,10 +277,12 @@ describe('gestalt-worker — WasmGestaltEngineProxy', () => {
     expect(innerExecute).toHaveBeenCalledWith(spec);
     expect(report.run_id).toBe('proxy-run-1');
     expect(report.success).toBe(true);
+    expect(consoleSpy).toHaveBeenCalledWith('[GestaltWorker] Calling real WASM executeRunSpec');
   });
 
-  it('should proxy subscribeEvents and consume full event stream', async () => {
+  it('should proxy subscribeEvents, consume full event stream and log precise message', async () => {
     const { WasmGestaltEngineProxy } = await import('../src/workers/gestalt-worker');
+    const consoleSpy = vi.spyOn(console, 'log');
     const innerSubscribe = vi.fn().mockReturnValue({
       next: vi
         .fn()
@@ -270,6 +299,7 @@ describe('gestalt-worker — WasmGestaltEngineProxy', () => {
     const events = proxy.subscribeEvents();
     expect(innerSubscribe).toHaveBeenCalled();
     expect(events).toEqual(['evt-1', 'evt-2', 'evt-3']);
+    expect(consoleSpy).toHaveBeenCalledWith('[GestaltWorker] Calling real WASM subscribeEvents');
   });
 
   it('should handle empty event stream', async () => {
@@ -309,6 +339,24 @@ describe('gestalt-worker — WasmGestaltEngineProxy', () => {
     expect(status.wasmLoaded).toBe(true);
     expect(status.engineType).toBe('wasm');
   });
+
+  it('should not throw and return empty list if stream has no next method (kills conditional/logical mutants)', async () => {
+    const { WasmGestaltEngineProxy } = await import('../src/workers/gestalt-worker');
+    const proxy = new WasmGestaltEngineProxy({
+      subscribeEvents: () => ({ next: 123 })
+    });
+    expect(() => proxy.subscribeEvents()).not.toThrow();
+    expect(proxy.subscribeEvents()).toEqual([]);
+  });
+
+  it('should not throw and return empty list if stream is null (kills conditional/logical mutants)', async () => {
+    const { WasmGestaltEngineProxy } = await import('../src/workers/gestalt-worker');
+    const proxy = new WasmGestaltEngineProxy({
+      subscribeEvents: () => null
+    });
+    expect(() => proxy.subscribeEvents()).not.toThrow();
+    expect(proxy.subscribeEvents()).toEqual([]);
+  });
 });
 
 // ── Tests: tryLoadWasm ──────────────────────────────────────────────
@@ -317,15 +365,16 @@ describe('gestalt-worker — WasmGestaltEngineProxy', () => {
 // expected state — we verify graceful fallback.
 
 describe('gestalt-worker — tryLoadWasm', () => {
-  it('should return false when WASM module is not available (expected fallback)', async () => {
+  it('should return false when WASM module is not available (expected fallback) and log exact file path', async () => {
     const { tryLoadWasm } = await import('../src/workers/gestalt-worker');
+    const consoleSpy = vi.spyOn(console, 'log');
     const result = await tryLoadWasm();
 
     expect(result).toBe(false);
-    // Should have logged the "not available" message
-    expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('[GestaltWorker] WASM not available'),
-      expect.any(String),
+    // Should have logged the "not available" message containing exact path
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[GestaltWorker] WASM not available (expected — not yet compiled):',
+      expect.stringContaining('../wasm/gestalt_wasm.js'),
     );
   });
 });
@@ -366,6 +415,19 @@ describe('gestalt-worker — self.onmessage message handler', () => {
     );
   });
 
+  it('should flush pendingOperations and clear the array on init', async () => {
+    const mod = await import('../src/workers/gestalt-worker');
+    const op = vi.fn();
+    mod.pendingOperations.push(op);
+
+    dispatchMessage('init');
+    await delay(50);
+
+    expect(op).toHaveBeenCalled();
+    expect(mod.pendingOperations).toHaveLength(0);
+    expect(mod.pendingOperations).toEqual([]);
+  });
+
   it('should execute a run spec and post run_report', async () => {
     await import('../src/workers/gestalt-worker');
 
@@ -394,6 +456,50 @@ describe('gestalt-worker — self.onmessage message handler', () => {
     expect(reportCall[0].payload.success).toBe(true);
     expect(reportCall[0].payload.agents).toHaveLength(1);
     expect(reportCall[0].payload.agents[0].agent_id).toBe('a1');
+  });
+
+  it('should slice task name to 80 chars in console log for execute_run_spec', async () => {
+    await import('../src/workers/gestalt-worker');
+    dispatchMessage('init');
+    await delay(50);
+
+    const consoleSpy = vi.spyOn(console, 'log');
+
+    const longTask = 'X'.repeat(100);
+    dispatchMessage('execute_run_spec', {
+      base_ref: 'main',
+      task: longTask,
+      agents: [{ id: 'a1' }],
+    } as any);
+
+    await delay(30);
+
+    expect(consoleSpy).toHaveBeenCalledWith('[GestaltWorker] executeRunSpec:', {
+      task: 'X'.repeat(80),
+      agents: 1,
+    });
+  });
+
+  it('should safely handle execute_run_spec log and not throw if task/agents are missing (kills optional chaining mutants)', async () => {
+    const mod = await import('../src/workers/gestalt-worker');
+    dispatchMessage('init');
+    await delay(50);
+
+    // Mock engine executeRunSpec to prevent crash inside mock engine on undefined spec properties
+    vi.spyOn(mod.engine!, 'executeRunSpec').mockReturnValue({} as any);
+
+    const consoleSpy = vi.spyOn(console, 'log');
+
+    dispatchMessage('execute_run_spec', {
+      base_ref: 'main',
+    } as any);
+
+    await delay(30);
+
+    expect(consoleSpy).toHaveBeenCalledWith('[GestaltWorker] executeRunSpec:', {
+      task: undefined,
+      agents: undefined,
+    });
   });
 
   it('should return error when execute_run_spec sent before init', async () => {
