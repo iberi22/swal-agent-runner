@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/swal-agent-runner/sw.js', { scope: '/swal-agent-runner/' })})}
