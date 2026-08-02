@@ -22,7 +22,7 @@ Agents working on this codebase MUST read files in the following strict order:
    - Never rely on Desktop-only APIs (`showDirectoryPicker`). Use `isomorphic-git` + `LightningFS` (IndexedDB) for repository management.
 
 2. **Xavier Memory Node Integration**:
-   - The embedded Xavier client (`src/services/memory/xavier-sync.ts`) acts as a local memory core.
+   - The embedded Xavier memory core (`src/services/memory/xavier-memory-node.ts`) plus HTTP/P2P sync (`src/services/memory/edge-mesh-sync.ts`) act as the local memory node.
    - Syncs in real time with the primary workstation Xavier node (`http://localhost:8006` or via `edge-mesh` WebRTC P2P) when paired.
    - Fallbacks gracefully to local IndexedDB (`isar_agent_memory` compatible schema) when offline.
 

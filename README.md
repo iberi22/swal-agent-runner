@@ -35,8 +35,9 @@ It turns your phone, tablet, or desktop browser tab into a self-contained "Jules
    - **OpenCodeGo & Custom API Keys**: OpenAI-compatible custom endpoints.
 
 4. **Xavier Local Memory Node & Real-Time Sync**:
-   - Acts as a local memory core powered by IndexedDB.
-   - Pairs in real time with the primary workstation Xavier node (`http://localhost:8006`) via `edge-mesh` WebRTC P2P to synchronize context, vector memories, and execution logs.
+   - Acts as a local memory core powered by IndexedDB (`src/services/memory/xavier-memory-node.ts`).
+   - Pairs in real time with the primary workstation Xavier node (`http://localhost:8006`) via `EdgeMeshSyncService` (`src/services/memory/edge-mesh-sync.ts`) — HTTP `/health` + `/api/v1/memory/sync`, with `edge-mesh` WebRTC P2P as the mesh transport — to synchronize context, vector memories, and execution logs.
+   - Default peer endpoint: `http://localhost:8006` (overridable in UI / `localStorage` key `swal_xavier_peer_endpoint`).
 
 ---
 
@@ -129,6 +130,17 @@ pnpm run dev
 
 ---
 
+## 🧪 Testing & Quality
+
+```bash
+pnpm run test    # Vitest unit + integration (378 tests) — WebContainer is mocked
+pnpm run build   # tsc + Vite production build + PWA service worker
+pnpm run lint    # Requires ESLint config (not yet shipped; CI skips when absent)
+pnpm run test:e2e  # Playwright — needs browser; not required for local unit CI
+```
+
+**WebContainer note:** `test/webcontainer-runner.test.ts` and related Vitest suites mock `@webcontainer/api`. They do **not** boot a real WebContainer. Real container boots need a secure context with COEP/COOP (`pnpm run dev`) and a browser that supports `SharedArrayBuffer`.
+
 ## 📚 Technical Documentation & Protocol References
 
 This project strictly adheres to the **SWAL GitCore Protocol v3.9.0**:
@@ -140,6 +152,7 @@ This project strictly adheres to the **SWAL GitCore Protocol v3.9.0**:
 *   **[.gitcore/ARCHITECTURE.md](.gitcore/ARCHITECTURE.md) — Core architectural invariants**
 *   **[docs/SRS/index.md](docs/SRS/index.md) — Software Requirements Specification Overview**
 *   **[docs/SRS/REQUIREMENTS.md](docs/SRS/REQUIREMENTS.md) — Detailed functional requirements & acceptance criteria**
+*   **[docs/feedback/](docs/feedback/) — Persisted agent/user reality audits**
 
 ---
 *SWAL GitCore Protocol v3.9.0*
