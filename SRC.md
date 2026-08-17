@@ -18,7 +18,7 @@ It features:
   - **Google Gemini API** (Direct API keys)
   - **OpenRouter** (Claude, DeepSeek, Llama, Qwen)
   - **OpenCodeGo** & custom OpenAI-compatible API endpoints
-- An embedded **Xavier Local Memory Node** with real-time `edge-mesh` P2P memory pairing to the main workstation Xavier instance.
+- An embedded **Xavier Local Memory Node** with real-time `edge-mesh` P2P memory pairing to the main workstation Xavier instance (`apps/xavier`).
 
 ---
 
@@ -30,23 +30,36 @@ swal-agent-runner/
 ├── .gitcore/
 │   ├── ARCHITECTURE.md
 │   ├── features.json
+│   ├── docs/
+│   │   └── SWAL_GOAL.md
 │   └── planning/
 │       └── tasks.json
+├── bin/
+│   └── monitor-billing.sh
 ├── docs/
 │   ├── SRS/
 │   │   ├── ARCHITECTURE.md
 │   │   ├── REQUIREMENTS.md
 │   │   └── index.md
-│   └── design/
-│       ├── MULTI-NODE-GIT-SYNC.md
-│       ├── MULTI-PEER-MESH.md
-│       ├── DESIGN-pyodide-integration.md
-│       ├── crdt-p2p-memory-sync.md
-│       └── gestalt-wasm-integration-design.md
+│   ├── design/
+│   │   ├── MULTI-NODE-GIT-SYNC.md
+│   │   ├── MULTI-PEER-MESH.md
+│   │   ├── DESIGN-pyodide-integration.md
+│   │   ├── crdt-p2p-memory-sync.md
+│   │   └── gestalt-wasm-integration-design.md
+│   ├── feedback/
+│   ├── issues/
+│   ├── research/
+│   ├── security/
+│   ├── architecture.md
+│   ├── deployment.md
+│   └── getting-started.md
+├── gestalt-wasm/
 ├── public/
 │   ├── icon-192.png
 │   ├── icon-512.png
 │   └── manifest.json
+├── reports/
 ├── src/
 │   ├── agent/
 │   │   ├── agent-loop.ts
@@ -130,10 +143,14 @@ swal-agent-runner/
 │   └── wasm-state.test.ts
 ├── AGENTS.md
 ├── CHANGELOG.md
-├── INDEX.html
+├── CLA.md
+├── CONTRIBUTING.md
+├── LICENSE
 ├── PROJECT_README.md
 ├── README.md
+├── SECURITY.md
 ├── SRC.md
+├── index.html
 ├── lighthouserc.json
 ├── package.json
 ├── stryker.conf.json
@@ -158,7 +175,7 @@ swal-agent-runner/
 | **Git Workspace Service** | `src/services/git/git-service.ts` | `isomorphic-git` clone/commit/diff/push engine |
 | **Git Sync Service** | `src/services/git/git-sync-service.ts` | Multi-node git sync: auto-pull/push, conflict detection |
 | **Xavier Memory Node** | `src/services/memory/xavier-memory-node.ts` | Local IndexedDB vector memory store |
-| **edge-mesh P2P Sync** | `src/services/memory/edge-mesh-sync.ts` | Real-time WebRTC pairing with PC Xavier master node |
+| **edge-mesh P2P Sync** | `src/services/memory/edge-mesh-sync.ts` | Real-time WebRTC pairing with PC Xavier master node (`apps/xavier`) |
 | **Device Identity** | `src/services/mesh/device-identity.ts` | Persistent device ID (IndexedDB) with auto type detection |
 | **CRDT Event Bus** | `src/services/mesh/crdt-event-bus.ts` | P2P event bus over Yjs shared types |
 | **CRDT Memory Store** | `src/services/mesh/crdt-memory-store.ts` | Working memory P2P sync via Y.Map with TTL |
@@ -174,22 +191,22 @@ swal-agent-runner/
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Start Vite dev server with COEP/COOP headers
-npm run dev
+pnpm run dev
 
 # Build production bundle with PWA service worker
-npm run build
+pnpm run build
 
 # Preview production build locally
-npm run preview
+pnpm run preview
 
 # Run all unit and integration tests (vitest)
-npm run test
+pnpm run test
 
 # Run mutation testing (stryker)
-npm run test:mutation
+pnpm run test:mutation
 
 # Run accessibility audit (requires Playwright)
 npx playwright test test/a11y/
@@ -218,11 +235,12 @@ npx lhci collect
 
 ## 6. Cross-Links
 
-- **Architecture Rules:** [.gitcore/ARCHITECTURE.md](file:///home/belal/proyectosSWAL/swal-agent-runner/.gitcore/ARCHITECTURE.md)
-- **Feature Manifest:** [.gitcore/features.json](file:///home/belal/proyectosSWAL/swal-agent-runner/.gitcore/features.json)
-- **Task List:** [.gitcore/planning/tasks.json](file:///home/belal/proyectosSWAL/swal-agent-runner/.gitcore/planning/tasks.json)
-- **Agent Instructions:** [AGENTS.md](file:///home/belal/proyectosSWAL/swal-agent-runner/AGENTS.md)
-- **SRS Specifications:** [docs/SRS/index.md](file:///home/belal/proyectosSWAL/swal-agent-runner/docs/SRS/index.md)
+- **Architecture Rules:** [.gitcore/ARCHITECTURE.md](.gitcore/ARCHITECTURE.md)
+- **Local SWAL GOAL:** [.gitcore/docs/SWAL_GOAL.md](.gitcore/docs/SWAL_GOAL.md)
+- **Feature Manifest:** [.gitcore/features.json](.gitcore/features.json)
+- **Task List:** [.gitcore/planning/tasks.json](.gitcore/planning/tasks.json)
+- **Agent Instructions:** [AGENTS.md](AGENTS.md)
+- **SRS Specifications:** [docs/SRS/index.md](docs/SRS/index.md)
 - **Deployment Guide:** [docs/deployment.md](docs/deployment.md)
 
 ---
